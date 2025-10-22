@@ -254,7 +254,7 @@ export const useGameLoop = () => {
   }, [gameOver]);
 
   const handleShoot = useCallback(() => {
-    if (gameOver || scoreRef.current < 100) return;
+    if (gameOver || scoreRef.current < 100) return; // Shooting unlocks at score 100
     const currentPlayerState = playerPhysicsRef.current?.getState();
     if (!currentPlayerState) return;
 

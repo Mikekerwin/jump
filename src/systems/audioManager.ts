@@ -25,52 +25,63 @@ export class AudioManager {
   initialize(): void {
     if (this.isUnlocked) return;
 
-    // Create bounce sound
-    this.bounceSound = new Audio(BOUNCE_SOUND_PATH);
-    this.bounceSound.volume = 1;
+    console.log('🔊 Initializing audio system...');
 
-    // Create laser hit sound
-    this.laserHitSound = new Audio(LASER_HIT_SOUND_PATH);
-    this.laserHitSound.volume = 1;
+    try {
+      // Create bounce sound
+      this.bounceSound = new Audio(BOUNCE_SOUND_PATH);
+      this.bounceSound.volume = 1;
+      this.bounceSound.load(); // Preload for Chrome
 
-    // Create background music
-    this.backgroundMusic = new Audio(BACKGROUND_MUSIC_PATH);
-    this.backgroundMusic.loop = true;
-    this.backgroundMusic.volume = BACKGROUND_MUSIC_VOLUME;
+      // Create laser hit sound
+      this.laserHitSound = new Audio(LASER_HIT_SOUND_PATH);
+      this.laserHitSound.volume = 1;
+      this.laserHitSound.load(); // Preload for Chrome
 
-    // Start background music
-    this.backgroundMusic.play().catch(() => {
-      // Autoplay might be blocked
-    });
+      // Create background music
+      this.backgroundMusic = new Audio(BACKGROUND_MUSIC_PATH);
+      this.backgroundMusic.loop = true;
+      this.backgroundMusic.volume = BACKGROUND_MUSIC_VOLUME;
+      this.backgroundMusic.load(); // Preload for Chrome
 
-    // Unlock bounce sound
-    this.bounceSound
-      .play()
-      .then(() => {
-        if (this.bounceSound) {
-          this.bounceSound.pause();
-          this.bounceSound.currentTime = 0;
-        }
-      })
-      .catch(() => {
-        // Autoplay might be blocked
-      });
+      // Start background music (Chrome may block)
+      this.backgroundMusic.play()
+        .then(() => console.log('🎵 Background music started'))
+        .catch((e) => console.warn('⚠️ Background music blocked:', e.message));
 
-    this.isUnlocked = true;
+      // Unlock bounce sound by playing and immediately pausing (Chrome requirement)
+      this.bounceSound.play()
+        .then(() => {
+          console.log('✅ Bounce sound unlocked');
+          if (this.bounceSound) {
+            this.bounceSound.pause();
+            this.bounceSound.currentTime = 0;
+          }
+        })
+        .catch((e) => console.warn('⚠️ Bounce sound unlock failed:', e.message));
+
+      this.isUnlocked = true;
+      console.log('✅ Audio system initialized');
+    } catch (error) {
+      console.error('❌ Audio initialization failed:', error);
+    }
   }
 
   /**
    * Play jump sound (only once per button press)
    */
   playJumpSound(): void {
-    if (!this.bounceSound) return;
+    if (!this.bounceSound) {
+      console.warn('⚠️ Jump sound: No audio object');
+      return;
+    }
     if (this.hasPlayedJumpSound) return; // Don't play again until released
 
     this.bounceSound.currentTime = 0;
     this.bounceSound.volume = 1;
-    this.bounceSound.play().catch(() => {
-      // Playback might fail
-    });
+    this.bounceSound.play()
+      .then(() => console.log('🔊 Jump sound played'))
+      .catch((e) => console.error('❌ Jump sound failed:', e.message));
 
     this.hasPlayedJumpSound = true;
   }

@@ -52,9 +52,10 @@ export const FLOOR_Y_POSITION = 0.75;  // 75% from top
 export const ENEMY_X_POSITION = 0.9;   // 90% from left
 
 // 🔊 AUDIO CONFIGURATION
-export const BOUNCE_SOUND_PATH = '/bounce.mp3';
-export const LASER_HIT_SOUND_PATH = '/lazerHit.mp3';
-export const BACKGROUND_MUSIC_PATH = '/audioTrack.mp3';
+// Use process.env.PUBLIC_URL to work with GitHub Pages deployment
+export const BOUNCE_SOUND_PATH = `${process.env.PUBLIC_URL}/bounce.mp3`;
+export const LASER_HIT_SOUND_PATH = `${process.env.PUBLIC_URL}/lazerHit.mp3`;
+export const BACKGROUND_MUSIC_PATH = `${process.env.PUBLIC_URL}/audioTrack.mp3`;
 export const BACKGROUND_MUSIC_VOLUME = 0.25;
 export const BOUNCE_DEBOUNCE_MS = 150;
 

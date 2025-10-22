@@ -119,8 +119,8 @@ const App: React.FC = () => {
           {/* Score Display */}
           <ScoreDisplay score={score} />
 
-          {/* Hit Counter (Score 200+) */}
-          {score >= 200 && !gameOver && (
+          {/* Hit Counter (Score 100+) */}
+          {score >= 100 && !gameOver && (
             <div
               style={{
                 position: 'absolute',
