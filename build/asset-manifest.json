@@ -1,0 +1,10 @@
+{
+  "files": {
+    "main.js": "/jump/static/js/main.fc1886eb.js",
+    "index.html": "/jump/index.html",
+    "main.fc1886eb.js.map": "/jump/static/js/main.fc1886eb.js.map"
+  },
+  "entrypoints": [
+    "static/js/main.fc1886eb.js"
+  ]
+}
