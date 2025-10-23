@@ -4,7 +4,7 @@
  */
 
 import { Star } from '../types/game';
-import { NUM_STARS, STAR_SPEED } from '../config/gameConfig';
+import { NUM_STARS, STAR_SPEED, BACKGROUND_OVERLAY_GRADIENT_START, BACKGROUND_OVERLAY_GRADIENT_END } from '../config/gameConfig';
 
 export class BackgroundStars {
   private stars: Star[] = [];
@@ -43,13 +43,19 @@ export class BackgroundStars {
   }
 
   /**
-   * Render stars to canvas
+   * Render stars to canvas with gradient background overlay
    */
   render(ctx: CanvasRenderingContext2D): void {
-    // Clear canvas
-    ctx.clearRect(0, 0, this.screenWidth, this.screenHeight);
+    // Create gradient from bottom to top
+    const gradient = ctx.createLinearGradient(0, this.screenHeight, 0, 0);
+    gradient.addColorStop(0, BACKGROUND_OVERLAY_GRADIENT_START); // Bottom
+    gradient.addColorStop(1, BACKGROUND_OVERLAY_GRADIENT_END);   // Top
 
-    // Draw all stars
+    // Apply gradient overlay (semi-transparent filter over scrolling background)
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, this.screenWidth, this.screenHeight);
+
+    // Draw all stars on top of overlay
     this.stars.forEach((star) => {
       ctx.beginPath();
       ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2);

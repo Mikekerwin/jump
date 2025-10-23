@@ -14,7 +14,7 @@ interface PlayerProps {
 
 export const Player = React.forwardRef<HTMLDivElement, PlayerProps>(
   ({ playerState, isHit }, ref) => {
-    const { position, scaleX, scaleY } = playerState;
+    const { position, scaleX } = playerState;
 
     return (
       <div
@@ -24,9 +24,12 @@ export const Player = React.forwardRef<HTMLDivElement, PlayerProps>(
           width: `${BALL_SIZE}px`,
           height: `${BALL_SIZE}px`,
           borderRadius: '50%',
+          top: `${position.y}px`,
+          left: `${position.x}px`,
           backgroundColor: isHit ? 'red' : '#4fc3f7',
-          transform: `translate3d(${position.x}px, ${position.y}px, 0) scale(${scaleX}, ${scaleY})`,
-          transition: isHit ? 'none' : 'background-color 0.75s ease',
+          boxShadow: isHit ? '0 0 15px red' : '0 0 15px #4fc3f7',
+          transform: `scale(${scaleX})`,
+          transition: 'transform 0.6s ease-out, background-color 0.75s ease, box-shadow 0.25s ease',
         }}
       />
     );

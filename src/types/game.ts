@@ -41,11 +41,18 @@ export interface Star {
   r: number; // radius
 }
 
+export type GameLevel = 1 | 2 | 3;
+
 export interface GameState {
   score: number;
   gameOver: boolean;
   numLasers: number;
   laserSpeed: number;
+  level: GameLevel;
+  enemyHits: number; // Track how many times enemy has hit the player (Level 2)
+  playerOuts: number; // Track player outs (0-10)
+  enemyOuts: number; // Track enemy outs (0-10)
+  shootGameOver: boolean; // Special game over when player reaches 10 outs
 }
 
 export interface AudioState {

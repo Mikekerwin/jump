@@ -9,7 +9,7 @@ export const HITBOX_SIZE = BALL_SIZE + 20;
 export const PLAYER_HORIZONTAL_RANGE_LEFT = 100; // Pixels player can move left from center
 export const PLAYER_HORIZONTAL_RANGE_RIGHT = 200; // Pixels player can move right from center
 
-// 🟢 PLAYER SHOOTING (UNLOCKS AT SCORE 200+)
+// 🟢 PLAYER SHOOTING (UNLOCKS AT SCORE 100+)
 export const PLAYER_PROJECTILE_SPEED = 8;
 export const PLAYER_PROJECTILE_WIDTH = 15;
 export const PLAYER_PROJECTILE_HEIGHT = 4;
@@ -23,20 +23,25 @@ export const GRAVITY = 0.42;
 export const ENERGY_LOSS = 0.55; // Bounce energy retention
 export const BOOST = 15.35; // Initial jump boost
 export const HOLD_BOOST = 0.16; // Continuous boost while holding
-export const MAX_HOLD_TIME = 2000; // Maximum hold duration in ms
+export const MAX_HOLD_TIME = 2200; // Maximum hold duration in ms
 
 // 🔴 LASER CONFIGURATION
 export const LASER_WIDTH = 25;
 export const LASER_HEIGHT = 2;
 export const BASE_LASER_SPEED = 4.5;
 export const LASER_SPEED_INCREMENT = 1.2;
+export const LASER_SPEED_REDUCTION_ON_UNLOCK = 0; // Speed reduction when new laser unlocks (experiment with this!)
+export const LASER_SPEED_GRADUAL_REDUCTION = 0.1; // Gradual speed reduction per point between scores 25-50
+export const LASER_SPEED_AT_SCORE_50 = 5; // Total laser speed is SET TO this value at score 50 (3rd laser)
+export const LASER_SPEED_AT_SCORE_75 = 6; // Total laser speed is SET TO this value at score 75 (4th laser)
+export const LASER_SPEED_TRANSITION_DURATION = 150; // Duration in ms to ease to new speed when reset (e.g., at score 50/75)
 export const MAX_LASERS = 4;
 export const SCORE_PER_LASER_UNLOCK = 25; // Score needed to unlock new laser
 
 // 🌪 LASER CHAOS / RANDOMNESS (increases every 5 points, resets every 25)
 export const CHAOS_INCREMENT_INTERVAL = 5; // Points between chaos increases
-export const BASE_LASER_RANDOMNESS = 0.3; // Base randomness factor (30% of screen)
-export const CHAOS_MULTIPLIER_PER_INTERVAL = 0.15; // Additional randomness per 5 points
+export const BASE_LASER_RANDOMNESS = 0.7; // Base randomness factor (70% of screen - more extreme movement)
+export const CHAOS_MULTIPLIER_PER_INTERVAL = 0.25; // Additional randomness per 5 points (more dramatic)
 
 // ⚡️ DIFFICULTY SCALING
 export const SCORE_PER_SPEED_INCREMENT = 5;
@@ -45,6 +50,18 @@ export const SPEED_INCREMENTS_PER_CYCLE = 5;
 // 🌌 BACKGROUND CONFIGURATION
 export const NUM_STARS = 100;
 export const STAR_SPEED = 1;
+// Background image configuration
+// In development, PUBLIC_URL is typically empty, so we use relative path
+export const BACKGROUND_IMAGE_PATH = process.env.PUBLIC_URL
+  ? `${process.env.PUBLIC_URL}/background.png`
+  : '/background.png';
+export const BACKGROUND_SCROLL_SPEED = 0.5; // Slower than stars
+export const BACKGROUND_HEIGHT_SCALE = 1.4; // Make background 15% taller while maintaining ratio
+// Background overlay gradient (applied over scrolling background, under stars)
+// Gradient goes from bottom (start) to top (end) of screen
+// Format: 'rgba(red, green, blue, alpha)' where alpha is 0 (transparent) to 1 (opaque)
+export const BACKGROUND_OVERLAY_GRADIENT_START = 'rgba(0, 0, 0, .8)'; // Bottom: more opaque
+export const BACKGROUND_OVERLAY_GRADIENT_END = 'rgba(0, 0, 0, .65)';   // Top: more transparent
 
 // 🧭 LAYOUT CONFIGURATION
 export const PLAYER_X_POSITION = 0.25; // 25% from left
@@ -62,6 +79,14 @@ export const BOUNCE_DEBOUNCE_MS = 150;
 // 🎮 GAMEPLAY BALANCE
 export const SCORE_UPDATE_INTERVAL = 200; // ms
 export const MIN_BOUNCE_VELOCITY = 0.3;   // Minimum velocity to trigger bounce
+
+// 🎯 LEVEL SYSTEM
+export const LEVEL_2_SCORE_THRESHOLD = 100; // Score needed to reach Level 2 (fighting mode)
+export const LEVEL_3_SCORE_THRESHOLD = 200; // Score needed to reach Level 3
+export const ENEMY_HITS_FOR_GROWTH = 20; // Enemy hits needed to grow (same as player's 20 hits)
+export const MAX_GROWTH_CYCLES = 5; // Maximum growth cycles before reset to original size
+export const MAX_OUTS = 10; // Maximum outs before game over or level transition
+export const HITS_PER_OUT = 20; // Hits needed to score an "out"
 
 // 🔴 ENEMY MOVEMENT & BEHAVIOR
 export const ENEMY_MOVE_SPEED = 0.12; // Smooth interpolation speed (0–1)

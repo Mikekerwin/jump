@@ -27,34 +27,49 @@ const App: React.FC = () => {
     enemyScale,
     wasHit,
     playerProjectiles,
+    level,
+    enemyHits,
+    playerOuts,
+    enemyOuts,
+    shootGameOver,
     dimensions,
     backgroundStars,
+    scrollingBackground,
     handleJumpStart,
     handleJumpEnd,
     handleMouseMove,
+    jumpToLevel2,
     handleTouchMove,
     handleShoot,
     handleRestart,
   } = useGameLoop();
 
   /**
-   * Render background stars
+   * Render scrolling background and stars
    */
   useEffect(() => {
-    if (!canvasRef.current || !backgroundStars) return;
+    if (!canvasRef.current || !backgroundStars || !scrollingBackground) return;
 
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx) return;
 
     const renderLoop = () => {
+      // Clear canvas
+      ctx.clearRect(0, 0, dimensions.width, dimensions.height);
+
+      // Render scrolling background first (behind stars)
+      scrollingBackground.render(ctx, dimensions.width, dimensions.height);
+
+      // Render stars on top
       backgroundStars.render(ctx);
+
       if (!gameOver) {
         requestAnimationFrame(renderLoop);
       }
     };
 
     requestAnimationFrame(renderLoop);
-  }, [backgroundStars, gameOver]);
+  }, [backgroundStars, scrollingBackground, gameOver, dimensions]);
 
   /**
    * Setup input controls
@@ -62,7 +77,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 's' || e.key === 'S') {
-        handleShoot(); // Shoot with 'S' key (score 200+)
+        handleShoot(); // Shoot with 'S' key (score 100+)
       } else {
         handleJumpStart(); // Jump with any other key
       }
@@ -116,10 +131,34 @@ const App: React.FC = () => {
 
       {!gameOver && (
         <>
+          {/* Test Button - Jump to Level 2 */}
+          {score < 100 && (
+            <button
+              onClick={jumpToLevel2}
+              style={{
+                position: 'absolute',
+                top: '100px',
+                left: '20px',
+                padding: '10px 20px',
+                backgroundColor: '#ff5252',
+                color: 'white',
+                border: 'none',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                fontFamily: 'monospace',
+                fontSize: '14px',
+                zIndex: 1000,
+                textShadow: '0 0 5px rgba(255, 82, 82, 0.5)',
+              }}
+            >
+              TEST: Jump to Level 2
+            </button>
+          )}
+
           {/* Score Display */}
           <ScoreDisplay score={score} />
 
-          {/* Hit Counter (Score 100+) */}
+          {/* Player Hit Counter (Score 100+) */}
           {score >= 100 && !gameOver && (
             <div
               style={{
@@ -127,13 +166,33 @@ const App: React.FC = () => {
                 top: '60px',
                 left: '20px',
                 color: '#4fc3f7',
-                fontSize: '24px',
+                fontSize: '20px',
                 fontFamily: 'monospace',
                 textShadow: '0 0 10px #4fc3f7',
                 zIndex: 100,
               }}
             >
-              Hit: {hitCount} / 20
+              <div>Hit: {hitCount} / 20</div>
+              <div style={{ marginTop: '5px' }}>Outs: {playerOuts} / 10</div>
+            </div>
+          )}
+
+          {/* Enemy Hit Counter (Level 2+) */}
+          {level >= 2 && !gameOver && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '60px',
+                right: '20px',
+                color: '#ff5252',
+                fontSize: '20px',
+                fontFamily: 'monospace',
+                textShadow: '0 0 10px #ff5252',
+                zIndex: 100,
+              }}
+            >
+              <div>Enemy Hit: {enemyHits} / 20</div>
+              <div style={{ marginTop: '5px' }}>Enemy Outs: {enemyOuts} / 10</div>
             </div>
           )}
 
@@ -161,8 +220,8 @@ const App: React.FC = () => {
             />
           ))}
 
-          {/* Player Projectiles (Score 200+) */}
-          {score >= 200 && playerProjectiles.map((projectile, index) => (
+          {/* Player Projectiles (Score 100+) */}
+          {score >= 100 && playerProjectiles.map((projectile, index) => (
             <PlayerProjectile
               key={index}
               x={projectile.x}
@@ -172,7 +231,7 @@ const App: React.FC = () => {
         </>
       )}
 
-      {gameOver && <GameOver onRestart={handleRestart} />}
+      {gameOver && <GameOver onRestart={handleRestart} shootGameOver={shootGameOver} />}
     </div>
   );
 };

@@ -7,9 +7,10 @@ import React from 'react';
 
 interface GameOverProps {
   onRestart: () => void;
+  shootGameOver?: boolean;
 }
 
-export const GameOver: React.FC<GameOverProps> = ({ onRestart }) => {
+export const GameOver: React.FC<GameOverProps> = ({ onRestart, shootGameOver }) => {
   return (
     <div
       onClick={onRestart}
@@ -19,13 +20,14 @@ export const GameOver: React.FC<GameOverProps> = ({ onRestart }) => {
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        color: 'white',
+        color: shootGameOver ? '#4fc3f7' : 'white',
         fontSize: '8rem',
         fontWeight: 'bold',
         cursor: 'pointer',
+        textShadow: shootGameOver ? '0 0 20px #4fc3f7' : 'none',
       }}
     >
-      JUMP!
+      {shootGameOver ? 'SHOOT!' : 'JUMP!'}
     </div>
   );
 };

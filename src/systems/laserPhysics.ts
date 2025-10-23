@@ -11,6 +11,11 @@ import {
   LASER_HEIGHT,
   BASE_LASER_SPEED,
   LASER_SPEED_INCREMENT,
+  LASER_SPEED_REDUCTION_ON_UNLOCK,
+  LASER_SPEED_GRADUAL_REDUCTION,
+  LASER_SPEED_AT_SCORE_50,
+  LASER_SPEED_AT_SCORE_75,
+  LASER_SPEED_TRANSITION_DURATION,
   MAX_LASERS,
   SCORE_PER_LASER_UNLOCK,
   SCORE_PER_SPEED_INCREMENT,
@@ -35,6 +40,11 @@ export class LaserPhysics {
   private lasers: LaserState[] = [];
   private numLasers: number = 1;
   private baseSpeed: number = BASE_LASER_SPEED;
+  private speedResetScore: number = -1; // Track when speed was last reset (for score 50 logic)
+  private isTransitioningSpeed: boolean = false; // Track if speed is currently transitioning
+  private transitionStartSpeed: number = 0; // Speed at start of transition
+  private transitionTargetSpeed: number = 0; // Target speed for transition
+  private transitionProgress: number = 0; // Progress of transition (0 to 1)
   private enemyY: number;
   private targetEnemyY: number; // Target Y position for smooth movement
   private pendingTargetY: number | null = null; // Delayed target position
@@ -144,9 +154,35 @@ export class LaserPhysics {
     const prevNumLasers = this.numLasers;
     this.numLasers = Math.min(extraLasers + 1, MAX_LASERS);
 
-    // Reset speed when new laser is added
+    // Reduce speed when new laser is added
     if (this.numLasers > prevNumLasers) {
-      this.baseSpeed = BASE_LASER_SPEED;
+      // Special case: Reset total speed to specific value at score 50 (3rd laser)
+      if (this.numLasers === 3) {
+        // Start smooth transition to new speed
+        this.transitionStartSpeed = this.getCurrentSpeed(score);
+        this.transitionTargetSpeed = LASER_SPEED_AT_SCORE_50;
+        this.transitionProgress = 0;
+        this.isTransitioningSpeed = true;
+
+        // Reset baseSpeed and track when we reset
+        this.baseSpeed = LASER_SPEED_AT_SCORE_50;
+        this.speedResetScore = score; // Remember we reset at this score
+      }
+      // Special case: Reset total speed to specific value at score 75 (4th laser)
+      else if (this.numLasers === 4) {
+        // Start smooth transition to new speed
+        this.transitionStartSpeed = this.getCurrentSpeed(score);
+        this.transitionTargetSpeed = LASER_SPEED_AT_SCORE_75;
+        this.transitionProgress = 0;
+        this.isTransitioningSpeed = true;
+
+        // Reset baseSpeed and track when we reset
+        this.baseSpeed = LASER_SPEED_AT_SCORE_75;
+        this.speedResetScore = score; // Remember we reset at this score
+      }
+      else {
+        this.baseSpeed = Math.max(1, this.baseSpeed - LASER_SPEED_REDUCTION_ON_UNLOCK);
+      }
     }
 
     // Adjust laser array
@@ -170,26 +206,84 @@ export class LaserPhysics {
   }
 
   /**
+   * Easing function for smooth transitions (ease-out cubic)
+   */
+  private easeOutCubic(t: number): number {
+    return 1 - Math.pow(1 - t, 3);
+  }
+
+  /**
    * Calculate current laser speed based on score
+   * Level 1 (0-99): Speed increases by LASER_SPEED_INCREMENT every SCORE_PER_SPEED_INCREMENT points
+   * Level 2 (100+): Speed stays constant at the value when entering Level 2
+   * Between scores 25-50, gradual reduction is applied
    */
   private getCurrentSpeed(score: number): number {
-    const speedIncrements = Math.floor(score / SCORE_PER_SPEED_INCREMENT) % SPEED_INCREMENTS_PER_CYCLE;
-    return this.baseSpeed + LASER_SPEED_INCREMENT * speedIncrements;
+    let speed: number;
+
+    // Level 2: Speed is constant (no incremental increases)
+    if (score >= 100) {
+      // If we've reset speed (at score 50 or 75), use that base speed
+      if (this.speedResetScore >= 0 && this.speedResetScore >= 50) {
+        speed = this.baseSpeed; // Just use base speed, no increments
+      } else {
+        // Calculate what the speed was at score 99 and keep it constant
+        const speedIncrements = Math.floor(99 / SCORE_PER_SPEED_INCREMENT);
+        speed = this.baseSpeed + (LASER_SPEED_INCREMENT * speedIncrements);
+      }
+    }
+    // Level 1: Normal incremental speed
+    else if (this.speedResetScore >= 0 && score > this.speedResetScore) {
+      // Calculate how many increments have happened since the reset
+      const incrementsSinceReset = Math.floor((score - this.speedResetScore) / SCORE_PER_SPEED_INCREMENT);
+      speed = this.baseSpeed + (LASER_SPEED_INCREMENT * incrementsSinceReset);
+    } else {
+      // Normal incremental speed calculation before reset
+      const speedIncrements = Math.floor(score / SCORE_PER_SPEED_INCREMENT);
+      speed = this.baseSpeed + (LASER_SPEED_INCREMENT * speedIncrements);
+
+      // Apply gradual reduction between scores 25-50
+      if (score > 25 && score < 50) {
+        const pointsPast25 = score - 25;
+        const reduction = pointsPast25 * LASER_SPEED_GRADUAL_REDUCTION;
+        speed -= reduction;
+      }
+    }
+
+    // If transitioning, interpolate between start and target speed
+    if (this.isTransitioningSpeed) {
+      const easedProgress = this.easeOutCubic(this.transitionProgress);
+      speed = this.transitionStartSpeed + (this.transitionTargetSpeed - this.transitionStartSpeed) * easedProgress;
+    }
+
+    return speed;
   }
 
   /**
    * Update all lasers for one frame
-   * Returns score change and hit status
+   * Returns score change, hit status, and enemy hit count
    */
   update(
     score: number,
     playerPosition: Position,
     playerHasJumped: boolean
-  ): { scoreChange: number; wasHit: boolean } {
+  ): { scoreChange: number; wasHit: boolean; enemyHitCount: number } {
     this.currentScore = score; // Update score for chaos calculation
+
+    // Update speed transition progress
+    if (this.isTransitioningSpeed) {
+      // Increment progress (assuming ~16.67ms per frame at 60 FPS)
+      this.transitionProgress += 16.67 / LASER_SPEED_TRANSITION_DURATION;
+      if (this.transitionProgress >= 1) {
+        this.transitionProgress = 1;
+        this.isTransitioningSpeed = false; // Transition complete
+      }
+    }
+
     const currentSpeed = this.getCurrentSpeed(score);
     let scoreChange = 0;
     let wasHit = false;
+    let enemyHitCount = 0; // Track enemy hits on player
 
     this.lasers.forEach((laser) => {
       // Move laser
@@ -235,6 +329,22 @@ export class LaserPhysics {
       ) {
         laser.hit = true;
         wasHit = true;
+        enemyHitCount++; // Increment enemy hit counter
+
+        // Make laser disappear (respawn) when it hits the player
+        const currentEnemyWidth = BALL_SIZE + (this.enemyGrowthLevel * ENEMY_WIDTH_GROWTH_PER_CYCLE);
+        const currentEnemyHeight = BALL_SIZE + (this.enemyGrowthLevel * ENEMY_HEIGHT_GROWTH_PER_CYCLE);
+        laser.x = this.enemyX + currentEnemyWidth / 2;
+        laser.y = this.enemyY + currentEnemyHeight / 2;
+        laser.hit = false;
+        laser.scored = false;
+        laser.passed = false;
+        laser.width = this.getNextLaserWidth();
+        laser.nextY = this.generateRandomLaserY(this.currentScore);
+
+        // Set up delayed movement to next position
+        this.pendingTargetY = laser.nextY;
+        this.movementDelayTimer = ENEMY_MOVEMENT_DELAY;
       }
 
       // Check if player successfully jumped over laser (scoring)
@@ -302,7 +412,7 @@ export class LaserPhysics {
     // Calculate velocity for squash/stretch effect
     this.enemyVelocity = this.enemyY - previousY;
 
-    return { scoreChange, wasHit };
+    return { scoreChange, wasHit, enemyHitCount };
   }
 
   /**
