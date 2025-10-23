@@ -18,8 +18,9 @@ interface EnemyProps {
 
 export const Enemy = React.memo(React.forwardRef<HTMLDivElement, EnemyProps>(
   ({ x, y, scale = 1, isHit = false, onShoot }, ref) => {
-    const handleClick = (e: React.MouseEvent | React.TouchEvent) => {
-      e.stopPropagation(); // Prevent triggering jump
+    const handleInteraction = (e: React.MouseEvent | React.TouchEvent) => {
+      e.preventDefault(); // Prevent default action
+      e.stopPropagation(); // Prevent bubbling to window listeners (stops jump)
       if (onShoot) {
         onShoot();
       }
@@ -28,8 +29,9 @@ export const Enemy = React.memo(React.forwardRef<HTMLDivElement, EnemyProps>(
     return (
       <div
         ref={ref}
-        onClick={handleClick}
-        onTouchStart={handleClick}
+        onClick={handleInteraction}
+        onMouseDown={handleInteraction}
+        onTouchStart={handleInteraction}
         style={{
           position: 'absolute',
           width: `${BALL_SIZE}px`,
