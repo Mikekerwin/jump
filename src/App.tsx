@@ -74,6 +74,9 @@ const App: React.FC = () => {
    * Setup input controls
    */
   useEffect(() => {
+    // Track if touch device to prevent mouse events from touch
+    let isTouchDevice = false;
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 's' || e.key === 'S') {
         handleShoot(); // Shoot with 'S' key (score 100+)
@@ -82,17 +85,30 @@ const App: React.FC = () => {
       }
     };
     const handleKeyUp = () => handleJumpEnd();
-    const handleMouseDown = () => handleJumpStart();
-    const handleMouseUp = () => handleJumpEnd();
-    const handleTouchStart = () => handleJumpStart();
+
+    const handleMouseDown = () => {
+      if (!isTouchDevice) handleJumpStart();
+    };
+    const handleMouseUp = () => {
+      if (!isTouchDevice) handleJumpEnd();
+    };
+    const handleMouseMoveWrapper = (e: MouseEvent) => {
+      // Only track mouse position on non-touch devices
+      if (!isTouchDevice) handleMouseMove(e);
+    };
+
+    const handleTouchStart = () => {
+      isTouchDevice = true; // Mark as touch device
+      handleJumpStart();
+    };
     const handleTouchEnd = () => handleJumpEnd();
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
     window.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mouseup', handleMouseUp);
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('touchstart', handleTouchStart);
+    window.addEventListener('mousemove', handleMouseMoveWrapper);
+    window.addEventListener('touchstart', handleTouchStart, { passive: false });
     window.addEventListener('touchend', handleTouchEnd);
     // Note: touchmove is NOT added - on touch devices, player doesn't follow finger position
 
@@ -101,7 +117,7 @@ const App: React.FC = () => {
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mouseup', handleMouseUp);
-      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mousemove', handleMouseMoveWrapper);
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchend', handleTouchEnd);
     };
@@ -114,6 +130,10 @@ const App: React.FC = () => {
         inset: 0,
         overflow: 'hidden',
         background: '#000',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        WebkitTouchCallout: 'none',
+        WebkitTapHighlightColor: 'transparent',
       }}
     >
       {/* Background Stars */}
