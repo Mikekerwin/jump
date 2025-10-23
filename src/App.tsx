@@ -39,7 +39,6 @@ const App: React.FC = () => {
     handleJumpEnd,
     handleMouseMove,
     jumpToLevel2,
-    handleTouchMove,
     handleShoot,
     handleRestart,
   } = useGameLoop();
