@@ -95,7 +95,7 @@ const App: React.FC = () => {
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('touchstart', handleTouchStart);
     window.addEventListener('touchend', handleTouchEnd);
-    window.addEventListener('touchmove', handleTouchMove);
+    // Note: touchmove is NOT added - on touch devices, player doesn't follow finger position
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
@@ -105,9 +105,8 @@ const App: React.FC = () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchend', handleTouchEnd);
-      window.removeEventListener('touchmove', handleTouchMove);
     };
-  }, [handleJumpStart, handleJumpEnd, handleMouseMove, handleTouchMove, handleShoot]);
+  }, [handleJumpStart, handleJumpEnd, handleMouseMove, handleShoot]);
 
   return (
     <div
@@ -205,6 +204,7 @@ const App: React.FC = () => {
             y={enemyY}
             scale={enemyScale.scaleY}
             isHit={enemyWasHit}
+            onShoot={score >= 100 ? handleShoot : undefined}
           />
 
           {/* Lasers */}

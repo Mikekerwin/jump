@@ -13,16 +13,23 @@ interface EnemyProps {
   y: number;
   scale?: number;
   isHit?: boolean; // Whether enemy was just hit by player projectile
+  onShoot?: () => void; // Handler for shooting when clicking/touching enemy
 }
 
 export const Enemy = React.memo(React.forwardRef<HTMLDivElement, EnemyProps>(
-  ({ x, y, scale = 1, isHit = false }, ref) => {
-    // Note: The actual size of the enemy is now controlled by its growth level in the physics system.
-    // The `BALL_SIZE` here is just the base size. The transform `scale` handles the visual growth.
-    // However, for simplicity, we'll let the internal physics size dictate collisions, and just render the base ball.
+  ({ x, y, scale = 1, isHit = false, onShoot }, ref) => {
+    const handleClick = (e: React.MouseEvent | React.TouchEvent) => {
+      e.stopPropagation(); // Prevent triggering jump
+      if (onShoot) {
+        onShoot();
+      }
+    };
+
     return (
       <div
         ref={ref}
+        onClick={handleClick}
+        onTouchStart={handleClick}
         style={{
           position: 'absolute',
           width: `${BALL_SIZE}px`,
@@ -34,6 +41,7 @@ export const Enemy = React.memo(React.forwardRef<HTMLDivElement, EnemyProps>(
           boxShadow: isHit ? '0 0 15px #4fc3f7' : '0 0 15px red',
           transform: `scale(${scale})`,
           transition: 'transform 0.6s ease-out, background-color 0.25s ease, box-shadow 0.25s ease, top 0.1s linear',
+          cursor: onShoot ? 'pointer' : 'default',
         }}
       />
     );
