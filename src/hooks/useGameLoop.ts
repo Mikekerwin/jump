@@ -162,10 +162,10 @@ export const useGameLoop = () => {
 
       const newPlayerState = playerPhysicsRef.current?.update();
       if (newPlayerState) {
-        // Apply player growth from enemy hits (Level 2 feature)
-        const growthScale = 1 + (playerGrowthLevelRef.current * 0.25); // Same as enemy: 25% per level
-        newPlayerState.scaleX = growthScale;
-        newPlayerState.scaleY = growthScale;
+        // NOTE: Player growth scaling disabled to preserve bounce animation
+        // const growthScale = 1 + (playerGrowthLevelRef.current * 0.25);
+        // newPlayerState.scaleX = growthScale;
+        // newPlayerState.scaleY = growthScale;
 
         setPlayerState(newPlayerState);
         if (playerPhysicsRef.current?.shouldPlayBounceSound()) {
