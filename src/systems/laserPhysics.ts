@@ -23,10 +23,6 @@ import {
   BALL_SIZE,
   ENEMY_MOVE_SPEED,
   ENEMY_MOVEMENT_DELAY,
-  ENEMY_SETTLE_THRESHOLD,
-  ENEMY_BOUNCE_AMPLITUDE,
-  ENEMY_OSCILLATION_DAMPING,
-  ENEMY_MIN_OSCILLATION_VELOCITY,
   CHAOS_INCREMENT_INTERVAL,
   BASE_LASER_RANDOMNESS,
   CHAOS_MULTIPLIER_PER_INTERVAL,
@@ -47,11 +43,14 @@ export class LaserPhysics {
   private transitionProgress: number = 0; // Progress of transition (0 to 1)
   private enemyY: number;
   private targetEnemyY: number; // Target Y position for smooth movement
+  private startEnemyY: number; // Starting Y position for ease-in calculation
   private pendingTargetY: number | null = null; // Delayed target position
   private movementDelayTimer: number = 0; // Timer for movement delay
   private enemyVelocity: number = 0; // Track movement velocity for squash/stretch
   private oscillationVelocity: number = 0; // Velocity for settling bounce/oscillation
   private isSettling: boolean = false; // Whether enemy is in settling/oscillation mode
+  private enemyScaleX: number = 1; // Current scale X for smooth interpolation
+  private enemyScaleY: number = 1; // Current scale Y for smooth interpolation
   private currentScore: number = 0; // Track current score for chaos calculation
   private laserSpawnCounter: number = 0; // New: Counter for alternating laser widths
   private enemyGrowthLevel: number = 0; // How many times the enemy has grown
@@ -64,6 +63,7 @@ export class LaserPhysics {
     this.minLaserY = screenHeight * 0.5;
     this.enemyY = centerY;
     this.targetEnemyY = centerY;
+    this.startEnemyY = centerY;
     this.enemyX = enemyX;
     this.initializeLasers();
   }
@@ -360,12 +360,15 @@ export class LaserPhysics {
     });
 
     // Handle movement delay timer
-    if (this.movementDelayTimer > 0) {
-      // Countdown the delay timer (assuming ~16.67ms per frame at 60 FPS)
-      this.movementDelayTimer -= 16.67;
+    if (this.pendingTargetY !== null) {
+      if (this.movementDelayTimer > 0) {
+        // Countdown the delay timer (assuming ~16.67ms per frame at 60 FPS)
+        this.movementDelayTimer -= 16.67;
+      }
 
-      // When delay expires, start moving to the pending target
-      if (this.movementDelayTimer <= 0 && this.pendingTargetY !== null) {
+      // When delay expires (or if delay is 0), start moving to the pending target
+      if (this.movementDelayTimer <= 0) {
+        this.startEnemyY = this.enemyY; // Store starting position for ease-in calculation
         this.targetEnemyY = this.pendingTargetY;
         this.pendingTargetY = null;
         this.isSettling = false; // Reset settling mode for new movement
@@ -375,42 +378,28 @@ export class LaserPhysics {
     const previousY = this.enemyY;
     const distanceToTarget = Math.abs(this.targetEnemyY - this.enemyY);
 
-    // Check if we should enter settling/oscillation mode
-    if (distanceToTarget < ENEMY_SETTLE_THRESHOLD && !this.isSettling) {
-      this.isSettling = true;
-      // Give it a strong initial bounce velocity for visible overshoot
-      // Direction depends on which way we're approaching
-      const direction = this.enemyY < this.targetEnemyY ? 1 : -1;
-      this.oscillationVelocity = direction * ENEMY_BOUNCE_AMPLITUDE;
-    }
+    // Use ease-in movement (slow start, fast end)
+    // Calculate how far we've traveled from the start
+    const totalDistance = Math.abs(this.targetEnemyY - this.startEnemyY);
+    const distanceTraveled = Math.abs(this.enemyY - this.startEnemyY);
+    const progress = totalDistance > 0 ? distanceTraveled / totalDistance : 1;
 
-    if (this.isSettling) {
-      // Physics-based oscillation (like blue ball bouncing)
-      this.enemyY += this.oscillationVelocity;
+    // Ease-in: speed increases as progress increases (inverted lerp)
+    // Start slow (small speed), end fast (large speed)
+    const easeInSpeed = ENEMY_MOVE_SPEED + (progress * ENEMY_MOVE_SPEED * 4);
+    this.enemyY += (this.targetEnemyY - this.enemyY) * easeInSpeed;
 
-      // Check if we've crossed the target (bounce)
-      const crossedTarget =
-        (this.oscillationVelocity > 0 && this.enemyY > this.targetEnemyY) ||
-        (this.oscillationVelocity < 0 && this.enemyY < this.targetEnemyY);
-
-      if (crossedTarget) {
-        // Snap to target and reverse with damping
-        this.enemyY = this.targetEnemyY;
-        this.oscillationVelocity = -this.oscillationVelocity * ENEMY_OSCILLATION_DAMPING;
-      }
-
-      // Stop oscillating when velocity is too small
-      if (Math.abs(this.oscillationVelocity) < ENEMY_MIN_OSCILLATION_VELOCITY) {
-        this.oscillationVelocity = 0;
-        this.enemyY = this.targetEnemyY;
-      }
-    } else {
-      // Normal smooth interpolation when not settling
-      this.enemyY += (this.targetEnemyY - this.enemyY) * ENEMY_MOVE_SPEED;
+    // Snap to target when extremely close to avoid floating point drift
+    if (distanceToTarget < 0.5) {
+      this.enemyY = this.targetEnemyY;
+      this.isSettling = false;
     }
 
     // Calculate velocity for squash/stretch effect
     this.enemyVelocity = this.enemyY - previousY;
+
+    // Update enemy scale animation based on velocity
+    this.updateEnemyScale();
 
     return { scoreChange, wasHit, enemyHitCount };
   }
@@ -437,23 +426,36 @@ export class LaserPhysics {
   }
 
   /**
-   * Get enemy squash/stretch scale based on movement velocity
-   * Returns { scaleX, scaleY } for morphing effect
-   * Squishes vertically when moving (scaleY reduces, scaleX stays 1)
+   * Update enemy scale animation based on movement velocity
+   * Similar to player ball's smooth scale interpolation
+   * Enemy squashes proportionally to velocity - more squash when moving fast (start),
+   * less squash when slowing down (approaching target)
    */
-  getEnemyScale(): { scaleX: number; scaleY: number } {
-    let scaleX = 1;
-    let scaleY = 1;
+  private updateEnemyScale(): void {
+    let targetScaleX = 1;
+    let targetScaleY = 1;
 
-    // Apply squash effect based on movement velocity
+    // Apply squash effect proportional to velocity (like player ball)
     const absVelocity = Math.abs(this.enemyVelocity);
-    if (absVelocity > 0.5) {
-      // Squish vertically when moving (compress height)
-      scaleY = Math.max(0.6, 1 - absVelocity / 30); // Compress to minimum 0.6
-      // Keep scaleX at 1 (no horizontal change)
+    if (absVelocity > 0.05) {
+      // Squash is proportional to velocity - starts strong, gradually releases
+      // Similar to player ball's velocity / 50 formula
+      const squashAmount = Math.min(absVelocity / 3, 0.3); // Cap at 0.3 for realistic squash
+      targetScaleY = 1 - squashAmount; // Compress height (0.7 to 1.0)
+      targetScaleX = 1; // Keep width constant
     }
 
-    return { scaleX, scaleY };
+    // Smooth interpolation (like player ball)
+    this.enemyScaleX += (targetScaleX - this.enemyScaleX) * 0.15;
+    this.enemyScaleY += (targetScaleY - this.enemyScaleY) * 0.15;
+  }
+
+  /**
+   * Get enemy squash/stretch scale
+   * Returns current smoothly interpolated scale values
+   */
+  getEnemyScale(): { scaleX: number; scaleY: number } {
+    return { scaleX: this.enemyScaleX, scaleY: this.enemyScaleY };
   }
 
   /**

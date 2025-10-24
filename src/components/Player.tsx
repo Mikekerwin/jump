@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { PlayerState } from '../types/game';
-import { BALL_SIZE } from '../config/gameConfig';
+import { BALL_SIZE, BALL_GROWTH_TRANSITION_DURATION } from '../config/gameConfig';
 
 interface PlayerProps {
   playerState: PlayerState;
@@ -39,8 +39,8 @@ export const Player = React.forwardRef<HTMLDivElement, PlayerProps>(
           boxShadow: isHit ? '0 0 15px red' : '0 0 15px #4fc3f7',
           transform: `scale(${scaleX}, ${scaleY})`,
           transition: isHit
-            ? 'width .65s ease, height .65s ease'
-            : 'background-color 0.75s ease, box-shadow 0.25s ease, width .65s ease, height .65s ease'
+            ? 'none'
+            : 'background-color 0.75s ease, box-shadow 0.25s ease'
         }}
       />
     );

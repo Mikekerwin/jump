@@ -57,10 +57,12 @@ export const useGameLoop = () => {
   const [enemyWasHit, setEnemyWasHit] = useState(false);
   const [enemyGrowthLevel, setEnemyGrowthLevel] = useState(0);
   const enemyGrowthLevelRef = useRef(enemyGrowthLevel);
+  const [animatedEnemyGrowthLevel, setAnimatedEnemyGrowthLevel] = useState(0); // Smoothly animated growth for rendering
   const [level, setLevel] = useState<1 | 2 | 3>(1);
   const [enemyHits, setEnemyHits] = useState(0); // Track enemy hits on player
   const [playerGrowthLevel, setPlayerGrowthLevel] = useState(0); // Track player growth from enemy hits
   const playerGrowthLevelRef = useRef(playerGrowthLevel); // Ref for immediate access in game loop
+  const [animatedPlayerGrowthLevel, setAnimatedPlayerGrowthLevel] = useState(0); // Smoothly animated growth for rendering
   const [playerOuts, setPlayerOuts] = useState(0); // Track player outs (0-10)
   const [enemyOuts, setEnemyOuts] = useState(0); // Track enemy outs (0-10)
   const [shootGameOver, setShootGameOver] = useState(false); // Special game over when player reaches 10 outs
@@ -175,6 +177,21 @@ export const useGameLoop = () => {
           audioManagerRef.current?.playBounce(volume);
         }
       }
+
+      // Smoothly interpolate animated growth levels towards target growth levels
+      setAnimatedPlayerGrowthLevel(prev => {
+        const target = playerGrowthLevelRef.current;
+        const diff = target - prev;
+        // Smooth lerp with 0.1 factor - completes in ~0.65s
+        return Math.abs(diff) < 0.01 ? target : prev + diff * 0.1;
+      });
+
+      setAnimatedEnemyGrowthLevel(prev => {
+        const target = enemyGrowthLevelRef.current;
+        const diff = target - prev;
+        // Smooth lerp with 0.1 factor - completes in ~0.65s
+        return Math.abs(diff) < 0.01 ? target : prev + diff * 0.1;
+      });
 
       const laserUpdate = laserPhysicsRef.current?.update(
         scoreRef.current,
@@ -395,8 +412,10 @@ export const useGameLoop = () => {
     setPlayerProjectiles([]);
     setHitCount(0);
     setEnemyGrowthLevel(0);
+    setAnimatedEnemyGrowthLevel(0); // Reset animated growth
     setEnemyHits(0);
     setPlayerGrowthLevel(0);
+    setAnimatedPlayerGrowthLevel(0); // Reset animated growth
     playerGrowthLevelRef.current = 0; // Reset ref immediately
     setPlayerOuts(0);
     setEnemyOuts(0);
@@ -428,8 +447,8 @@ export const useGameLoop = () => {
     playerOuts,
     enemyOuts,
     shootGameOver,
-    playerGrowthLevel, // Export for Player component to calculate size
-    enemyGrowthLevel, // Export for Enemy component to calculate size
+    playerGrowthLevel: animatedPlayerGrowthLevel, // Export animated growth for smooth rendering
+    enemyGrowthLevel: animatedEnemyGrowthLevel, // Export animated growth for smooth rendering
     dimensions: dimensionsRef.current,
     backgroundStars: backgroundStarsRef.current,
     scrollingBackground: scrollingBackgroundRef.current,

@@ -8,6 +8,7 @@ export const BALL_SIZE = 80;
 export const HITBOX_SIZE = BALL_SIZE + 20;
 export const PLAYER_HORIZONTAL_RANGE_LEFT = 100; // Pixels player can move left from center
 export const PLAYER_HORIZONTAL_RANGE_RIGHT = 200; // Pixels player can move right from center
+export const BALL_GROWTH_TRANSITION_DURATION = 0.65; // Duration in seconds for width/height/top/left growth animation
 
 // 🟢 PLAYER SHOOTING (UNLOCKS AT SCORE 100+)
 export const PLAYER_PROJECTILE_SPEED = 8;
@@ -89,10 +90,5 @@ export const MAX_OUTS = 10; // Maximum outs before game over or level transition
 export const HITS_PER_OUT = 20; // Hits needed to score an "out"
 
 // 🔴 ENEMY MOVEMENT & BEHAVIOR
-export const ENEMY_MOVE_SPEED = 0.04; // Smooth interpolation speed (0–1) - slower for visible squash
-export const ENEMY_MOVEMENT_DELAY = 1000; // Delay before moving to next Y position (1 second)
-export const ENEMY_SETTLE_THRESHOLD = 15; // Distance threshold for oscillation start
-export const ENEMY_BOUNCE_AMPLITUDE = 3; // Strength of enemy “settling” bounce
-export const ENEMY_OSCILLATION_DAMPING = 0.75; // Energy retention of bounce
-export const ENEMY_MIN_OSCILLATION_VELOCITY = 0.15; // Cutoff velocity to stop oscillating
-export const LASER_PREP_DISTANCE = 500; // Distance from enemy where next laser is determined
+export const ENEMY_MOVE_SPEED = 0.015; // Smooth interpolation speed (0–1) - very slow for visible squash
+export const ENEMY_MOVEMENT_DELAY = 0; // No delay - start moving immediately after shooting

@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { BALL_SIZE } from '../config/gameConfig';
+import { BALL_SIZE, BALL_GROWTH_TRANSITION_DURATION } from '../config/gameConfig';
 
 
 interface EnemyProps {
@@ -53,8 +53,8 @@ export const Enemy = React.memo(React.forwardRef<HTMLDivElement, EnemyProps>(
           boxShadow: isHit ? '0 0 15px #4fc3f7' : '0 0 15px red',
           transform: `scale(${scaleX}, ${scaleY})`,
           transition: isHit
-            ? 'width .65s ease, height .65s ease'
-            : 'background-color 0.75s ease, box-shadow 0.25s ease, width .65s ease, height .65s ease',
+            ? 'none'
+            : 'transform 0.3s ease, background-color 0.75s ease, box-shadow 0.25s ease',
           cursor: onShoot ? 'pointer' : 'default',
           userSelect: 'none',
           WebkitUserSelect: 'none',
