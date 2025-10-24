@@ -89,8 +89,8 @@ export const MAX_OUTS = 10; // Maximum outs before game over or level transition
 export const HITS_PER_OUT = 20; // Hits needed to score an "out"
 
 // 🔴 ENEMY MOVEMENT & BEHAVIOR
-export const ENEMY_MOVE_SPEED = 0.12; // Smooth interpolation speed (0–1)
-export const ENEMY_MOVEMENT_DELAY = 500; // Delay before moving to next Y position
+export const ENEMY_MOVE_SPEED = 0.04; // Smooth interpolation speed (0–1) - slower for visible squash
+export const ENEMY_MOVEMENT_DELAY = 1000; // Delay before moving to next Y position (1 second)
 export const ENEMY_SETTLE_THRESHOLD = 15; // Distance threshold for oscillation start
 export const ENEMY_BOUNCE_AMPLITUDE = 3; // Strength of enemy “settling” bounce
 export const ENEMY_OSCILLATION_DAMPING = 0.75; // Energy retention of bounce
