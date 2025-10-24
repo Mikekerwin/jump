@@ -19,6 +19,7 @@ export class PlayerPhysics {
   private playerState: PlayerState;
   private initialX: number;
   private centerY: number;
+  private jumpCount: number = 0; // Track number of jumps (0, 1, or 2 for double jump)
 
   constructor(initialX: number, initialY: number, centerY: number) {
     this.centerY = centerY;
@@ -59,6 +60,7 @@ export class PlayerPhysics {
       this.playerState.position.y = this.centerY;
       this.playerState.velocity = -this.playerState.velocity * ENERGY_LOSS;
       this.playerState.hasJumped = false;
+      this.jumpCount = 0; // Reset jump count when touching ground
 
       // Stop very small bounces
       if (Math.abs(this.playerState.velocity) < MIN_BOUNCE_VELOCITY) {
@@ -92,11 +94,14 @@ export class PlayerPhysics {
 
   /**
    * Start a jump (initial press)
+   * Supports double jump - can jump up to 2 times before touching ground
    */
   startJump(): void {
-    if (!this.playerState.hasJumped) {
+    // Allow jump if we haven't used both jumps yet
+    if (this.jumpCount < 2) {
       this.playerState.velocity = BOOST;
       this.playerState.hasJumped = true;
+      this.jumpCount++;
     }
     this.playerState.isHolding = true;
     this.playerState.holdStartTime = performance.now();
@@ -173,6 +178,7 @@ export class PlayerPhysics {
    */
   reset(initialX: number, initialY: number): void {
     this.initialX = initialX;
+    this.jumpCount = 0; // Reset jump count
     this.playerState = {
       position: { x: initialX, y: initialY },
       velocity: 0,
