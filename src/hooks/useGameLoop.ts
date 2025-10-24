@@ -429,6 +429,7 @@ export const useGameLoop = () => {
     enemyOuts,
     shootGameOver,
     playerGrowthLevel, // Export for Player component to calculate size
+    enemyGrowthLevel, // Export for Enemy component to calculate size
     dimensions: dimensionsRef.current,
     backgroundStars: backgroundStarsRef.current,
     scrollingBackground: scrollingBackgroundRef.current,

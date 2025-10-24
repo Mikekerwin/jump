@@ -34,6 +34,7 @@ const App: React.FC = () => {
     enemyOuts,
     shootGameOver,
     playerGrowthLevel,
+    enemyGrowthLevel,
     dimensions,
     backgroundStars,
     scrollingBackground,
@@ -224,7 +225,9 @@ const App: React.FC = () => {
           <Enemy
             x={dimensions.enemyX}
             y={enemyY}
-            scale={enemyScale.scaleY}
+            scaleX={enemyScale.scaleX}
+            scaleY={enemyScale.scaleY}
+            growthLevel={enemyGrowthLevel}
             isHit={enemyWasHit}
             onShoot={score >= 100 ? handleShoot : undefined}
           />
