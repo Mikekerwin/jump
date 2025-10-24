@@ -52,7 +52,9 @@ export const Enemy = React.memo(React.forwardRef<HTMLDivElement, EnemyProps>(
           backgroundColor: isHit ? '#4fc3f7' : 'red', // Change to blue when hit
           boxShadow: isHit ? '0 0 15px #4fc3f7' : '0 0 15px red',
           transform: `scale(${scaleX}, ${scaleY})`,
-          transition: 'background-color 0.25s ease, box-shadow 0.25s ease, top 0.1s linear, width 0.3s ease, height 0.3s ease',
+          transition: isHit
+            ? 'width .65s ease, height .65s ease'
+            : 'background-color 0.75s ease, box-shadow 0.25s ease, width .65s ease, height .65s ease',
           cursor: onShoot ? 'pointer' : 'default',
           userSelect: 'none',
           WebkitUserSelect: 'none',

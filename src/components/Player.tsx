@@ -39,8 +39,8 @@ export const Player = React.forwardRef<HTMLDivElement, PlayerProps>(
           boxShadow: isHit ? '0 0 15px red' : '0 0 15px #4fc3f7',
           transform: `scale(${scaleX}, ${scaleY})`,
           transition: isHit
-            ? 'none'
-            : 'background-color 0.75s ease, box-shadow 0.25s ease, width 0.3s ease, height 0.3s ease',
+            ? 'width .65s ease, height .65s ease'
+            : 'background-color 0.75s ease, box-shadow 0.25s ease, width .65s ease, height .65s ease'
         }}
       />
     );

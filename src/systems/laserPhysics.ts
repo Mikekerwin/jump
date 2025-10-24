@@ -439,13 +439,21 @@ export class LaserPhysics {
   /**
    * Get enemy squash/stretch scale based on movement velocity
    * Returns { scaleX, scaleY } for morphing effect
-   * Squishes in the direction of movement (like blue ball bouncing through liquid)
+   * Squishes vertically when moving (scaleY reduces, scaleX stays 1)
    */
-  getEnemyScale(): number {
-    // Calculate the base scale factor based on growth level.
-    // Each growth level adds 0.25 to the base scale of 1.
-    // This directly implements the requirement: initial 1 + (growthLevel * 0.25).
-    return 1 + (this.enemyGrowthLevel * 0.25);
+  getEnemyScale(): { scaleX: number; scaleY: number } {
+    let scaleX = 1;
+    let scaleY = 1;
+
+    // Apply squash effect based on movement velocity
+    const absVelocity = Math.abs(this.enemyVelocity);
+    if (absVelocity > 0.5) {
+      // Squish vertically when moving (compress height)
+      scaleY = Math.max(0.6, 1 - absVelocity / 30); // Compress to minimum 0.6
+      // Keep scaleX at 1 (no horizontal change)
+    }
+
+    return { scaleX, scaleY };
   }
 
   /**
