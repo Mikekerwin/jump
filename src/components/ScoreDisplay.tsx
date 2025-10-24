@@ -20,6 +20,10 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ score }) => {
         fontSize: '2rem',
         fontWeight: 'bold',
         color: 'white',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        WebkitTouchCallout: 'none',
+        WebkitTapHighlightColor: 'transparent',
       }}
     >
       Score: {score}

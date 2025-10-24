@@ -44,6 +44,11 @@ export const Enemy = React.memo(React.forwardRef<HTMLDivElement, EnemyProps>(
           transform: `scale(${scale})`,
           transition: 'transform 0.6s ease-out, background-color 0.25s ease, box-shadow 0.25s ease, top 0.1s linear',
           cursor: onShoot ? 'pointer' : 'default',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          WebkitTouchCallout: 'none',
+          WebkitTapHighlightColor: 'transparent',
+          touchAction: 'manipulation',
         }}
       />
     );
