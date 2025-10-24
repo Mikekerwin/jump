@@ -15,7 +15,7 @@ interface PlayerProps {
 
 export const Player = React.forwardRef<HTMLDivElement, PlayerProps>(
   ({ playerState, isHit, growthLevel = 0 }, ref) => {
-    const { position, bounceOffsetX, bounceOffsetY } = playerState;
+    const { position, scaleX, scaleY } = playerState;
 
     // Calculate actual size based on growth level
     const growthAmount = growthLevel * 20; // 0, 20, 40, 60, 80
@@ -37,7 +37,7 @@ export const Player = React.forwardRef<HTMLDivElement, PlayerProps>(
           left: `${centeredLeft}px`,
           backgroundColor: isHit ? 'red' : '#4fc3f7',
           boxShadow: isHit ? '0 0 15px red' : '0 0 15px #4fc3f7',
-          transform: `translate(${bounceOffsetX}px, ${bounceOffsetY}px)`,
+          transform: `scale(${scaleX}, ${scaleY})`,
           transition: isHit
             ? 'none'
             : 'background-color 0.75s ease, box-shadow 0.25s ease, width 0.3s ease, height 0.3s ease',
