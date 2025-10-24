@@ -311,9 +311,9 @@ export const useGameLoop = () => {
       // ✅ Pass updated growth level to physics FIRST
       laserPhysicsRef.current?.setEnemyGrowthLevel(enemyGrowthLevelRef.current);
 
-      // ✅ Now get updated scale that reflects growth
-      const newScale = laserPhysicsRef.current?.getEnemyScale() || 1;
-      setEnemyScale({ scaleX: newScale, scaleY: newScale });
+      // ✅ Now get updated scale that includes squash animation
+      const newScale = laserPhysicsRef.current?.getEnemyScale() || { scaleX: 1, scaleY: 1 };
+      setEnemyScale(newScale);
 
       if (scoreRef.current < 0) {
         gameOverRef.current = true; // Immediately stop game loop
