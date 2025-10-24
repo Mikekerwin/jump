@@ -41,6 +41,8 @@ export const useGameLoop = () => {
     velocity: 0,
     scaleX: 1,
     scaleY: 1,
+    bounceOffsetX: 0,
+    bounceOffsetY: 0,
     hasJumped: false,
     isHolding: false,
     holdStartTime: 0,
@@ -426,6 +428,7 @@ export const useGameLoop = () => {
     playerOuts,
     enemyOuts,
     shootGameOver,
+    playerGrowthLevel, // Export for Player component to calculate size
     dimensions: dimensionsRef.current,
     backgroundStars: backgroundStarsRef.current,
     scrollingBackground: scrollingBackgroundRef.current,

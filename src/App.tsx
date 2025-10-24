@@ -33,6 +33,7 @@ const App: React.FC = () => {
     playerOuts,
     enemyOuts,
     shootGameOver,
+    playerGrowthLevel,
     dimensions,
     backgroundStars,
     scrollingBackground,
@@ -217,7 +218,7 @@ const App: React.FC = () => {
           )}
 
           {/* Player Ball */}
-          <Player playerState={playerState} isHit={wasHit} />
+          <Player playerState={playerState} isHit={wasHit} growthLevel={playerGrowthLevel} />
 
           {/* Enemy Launcher */}
           <Enemy

@@ -10,8 +10,10 @@ export interface Position {
 export interface PlayerState {
   position: Position;
   velocity: number;
-  scaleX: number;
-  scaleY: number;
+  scaleX: number; // Kept for compatibility, now used for bounce offset X
+  scaleY: number; // Kept for compatibility, now used for bounce offset Y
+  bounceOffsetX: number; // Horizontal offset for squash/stretch animation
+  bounceOffsetY: number; // Vertical offset for squash/stretch animation
   hasJumped: boolean;
   isHolding: boolean;
   holdStartTime: number;

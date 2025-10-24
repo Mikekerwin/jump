@@ -29,6 +29,8 @@ export class PlayerPhysics {
       velocity: 0,
       scaleX: 1,
       scaleY: 1,
+      bounceOffsetX: 0,
+      bounceOffsetY: 0,
       hasJumped: false,
       isHolding: false,
       holdStartTime: 0,
@@ -118,31 +120,31 @@ export class PlayerPhysics {
   }
 
   /**
-   * Update player scaling for squash and stretch effect
+   * Update player bounce offsets for squash and stretch effect
+   * Using translate instead of scale for visual bounce animation
    */
   private updateScaling(): void {
-    let targetScaleX = 1;
-    let targetScaleY = 1;
+    let targetOffsetX = 0;
+    let targetOffsetY = 0;
 
+    // Calculate bounce offset based on velocity to create squash/stretch
+    // These offsets will be used in CSS translate() to visually deform the ball
     if (Math.abs(this.playerState.velocity) > 0.1) {
       if (this.playerState.velocity > 0) {
-        // Moving up - stretch vertically
-        targetScaleY = 1 - this.playerState.velocity / 50;
-        targetScaleX = 1 + this.playerState.velocity / 50;
+        // Moving up - stretch vertically (slight upward offset)
+        targetOffsetY = -this.playerState.velocity / 3;
       } else {
-        // Moving down - stretch horizontally
-        targetScaleY = 1 + Math.abs(this.playerState.velocity) / 50;
-        targetScaleX = 1 - Math.abs(this.playerState.velocity) / 50;
+        // Moving down - stretch vertically (slight downward offset)
+        targetOffsetY = Math.abs(this.playerState.velocity) / 3;
       }
     }
 
-    // Squash when on ground
+    // Squash when on ground (offset downward to simulate compression)
     if (
       this.playerState.position.y >= this.centerY &&
       Math.abs(this.playerState.velocity) < 0.5
     ) {
-      targetScaleY = 0.7;
-      targetScaleX = 1.3;
+      targetOffsetY = 5; // Push down slightly for squash effect
     }
 
     // Return to normal when settled
@@ -150,13 +152,17 @@ export class PlayerPhysics {
       Math.abs(this.playerState.velocity) < 0.01 &&
       this.playerState.position.y >= this.centerY
     ) {
-      targetScaleX = 1;
-      targetScaleY = 1;
+      targetOffsetX = 0;
+      targetOffsetY = 0;
     }
 
     // Smooth interpolation
-    this.playerState.scaleX += (targetScaleX - this.playerState.scaleX) * 0.15;
-    this.playerState.scaleY += (targetScaleY - this.playerState.scaleY) * 0.15;
+    this.playerState.bounceOffsetX += (targetOffsetX - this.playerState.bounceOffsetX) * 0.15;
+    this.playerState.bounceOffsetY += (targetOffsetY - this.playerState.bounceOffsetY) * 0.15;
+
+    // Keep scaleX and scaleY at 1 for now (ready for future use)
+    this.playerState.scaleX = 1;
+    this.playerState.scaleY = 1;
   }
 
   /**
@@ -187,6 +193,8 @@ export class PlayerPhysics {
       velocity: 0,
       scaleX: 1,
       scaleY: 1,
+      bounceOffsetX: 0,
+      bounceOffsetY: 0,
       hasJumped: false,
       isHolding: false,
       holdStartTime: 0,
