@@ -11,6 +11,7 @@ import { Laser } from './components/Laser';
 import { PlayerProjectile } from './components/PlayerProjectile';
 import { GameOver } from './components/GameOver';
 import { ScoreDisplay } from './components/ScoreDisplay';
+import { FullscreenButton } from './components/FullscreenButton';
 
 const App: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -252,6 +253,9 @@ const App: React.FC = () => {
       )}
 
       {gameOver && <GameOver onRestart={handleRestart} shootGameOver={shootGameOver} />}
+
+      {/* Fullscreen Toggle Button */}
+      <FullscreenButton />
     </div>
   );
 };
