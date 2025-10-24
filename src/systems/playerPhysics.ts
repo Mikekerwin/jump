@@ -95,11 +95,14 @@ export class PlayerPhysics {
   /**
    * Start a jump (initial press)
    * Supports double jump - can jump up to 2 times before touching ground
+   * Second jump has reduced power (60% of first jump)
    */
   startJump(): void {
     // Allow jump if we haven't used both jumps yet
     if (this.jumpCount < 2) {
-      this.playerState.velocity = BOOST;
+      // Second jump is weaker than first jump
+      const jumpPower = this.jumpCount === 0 ? BOOST : BOOST * 0.6;
+      this.playerState.velocity = jumpPower;
       this.playerState.hasJumped = true;
       this.jumpCount++;
     }
