@@ -60,7 +60,7 @@ export class LaserPhysics {
 
   constructor(screenWidth: number, screenHeight: number, centerY: number, enemyX: number) {
     this.centerY = centerY;
-    this.minLaserY = screenHeight * 0.5;
+    this.minLaserY = screenHeight * 0.2; // Allow enemy to go up to 20% from top (80% of screen height)
     this.enemyY = centerY;
     this.targetEnemyY = centerY;
     this.startEnemyY = centerY;
@@ -284,6 +284,7 @@ export class LaserPhysics {
     let scoreChange = 0;
     let wasHit = false;
     let enemyHitCount = 0; // Track enemy hits on player
+    let hitRegisteredThisFrame = false; // Only count one hit per frame
 
     this.lasers.forEach((laser) => {
       // Move laser
@@ -329,7 +330,11 @@ export class LaserPhysics {
       ) {
         laser.hit = true;
         wasHit = true;
-        enemyHitCount++; // Increment enemy hit counter
+        // Only count one hit per frame, even if multiple lasers hit
+        if (!hitRegisteredThisFrame) {
+          enemyHitCount++; // Increment enemy hit counter
+          hitRegisteredThisFrame = true;
+        }
 
         // Make laser disappear (respawn) when it hits the player
         const currentEnemyWidth = BALL_SIZE + (this.enemyGrowthLevel * ENEMY_WIDTH_GROWTH_PER_CYCLE);
@@ -476,7 +481,7 @@ export class LaserPhysics {
    */
   updateDimensions(screenWidth: number, screenHeight: number, centerY: number, enemyX: number): void {
     this.centerY = centerY;
-    this.minLaserY = screenHeight * 0.5;
+    this.minLaserY = screenHeight * 0.2; // Allow enemy to go up to 20% from top (80% of screen height)
     this.enemyX = enemyX;
   }
 }

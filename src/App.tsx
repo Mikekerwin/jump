@@ -12,6 +12,7 @@ import { PlayerProjectile } from './components/PlayerProjectile';
 import { GameOver } from './components/GameOver';
 import { ScoreDisplay } from './components/ScoreDisplay';
 import { FullscreenButton } from './components/FullscreenButton';
+import { EnergyBar } from './components/EnergyBar';
 
 const App: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -28,7 +29,8 @@ const App: React.FC = () => {
     enemyScale,
     wasHit,
     playerProjectiles,
-    level,
+    energy,
+    canShoot,
     enemyHits,
     playerOuts,
     enemyOuts,
@@ -41,7 +43,7 @@ const App: React.FC = () => {
     handleJumpStart,
     handleJumpEnd,
     handleMouseMove,
-    jumpToLevel2,
+    testEnergy,
     handleShoot,
     handleRestart,
   } = useGameLoop();
@@ -153,10 +155,10 @@ const App: React.FC = () => {
 
       {!gameOver && (
         <>
-          {/* Test Button - Jump to Level 2 */}
-          {score < 100 && (
+          {/* Test Button - Fill Energy */}
+          {!canShoot && (
             <button
-              onClick={jumpToLevel2}
+              onClick={testEnergy}
               style={{
                 position: 'absolute',
                 top: '100px',
@@ -173,7 +175,7 @@ const App: React.FC = () => {
                 textShadow: '0 0 5px rgba(255, 82, 82, 0.5)',
               }}
             >
-              TEST: Jump to Level 2
+              TEST: Fill Energy
             </button>
           )}
 
@@ -199,8 +201,8 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {/* Enemy Hit Counter (Level 2+) */}
-          {level >= 2 && !gameOver && (
+          {/* Enemy Hit Counter (Always visible) */}
+          {!gameOver && (
             <div
               style={{
                 position: 'absolute',
@@ -217,6 +219,9 @@ const App: React.FC = () => {
               <div style={{ marginTop: '5px' }}>Enemy Outs: {enemyOuts} / 10</div>
             </div>
           )}
+
+          {/* Energy Bar */}
+          {!gameOver && <EnergyBar energy={energy} />}
 
           {/* Player Ball */}
           <Player playerState={playerState} isHit={wasHit} growthLevel={playerGrowthLevel} />

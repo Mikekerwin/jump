@@ -58,7 +58,9 @@ export const useGameLoop = () => {
   const [enemyGrowthLevel, setEnemyGrowthLevel] = useState(0);
   const enemyGrowthLevelRef = useRef(enemyGrowthLevel);
   const [animatedEnemyGrowthLevel, setAnimatedEnemyGrowthLevel] = useState(0); // Smoothly animated growth for rendering
-  const [level, setLevel] = useState<1 | 2 | 3>(1);
+  const [energy, setEnergy] = useState(0); // Energy bar (0-100) - fills on jump, drains on shoot
+  const energyRef = useRef(energy); // Ref for immediate access in game loop
+  const [canShoot, setCanShoot] = useState(false); // Player can shoot once energy reaches 100
   const [enemyHits, setEnemyHits] = useState(0); // Track enemy hits on player
   const [playerGrowthLevel, setPlayerGrowthLevel] = useState(0); // Track player growth from enemy hits
   const playerGrowthLevelRef = useRef(playerGrowthLevel); // Ref for immediate access in game loop
@@ -126,10 +128,14 @@ export const useGameLoop = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Keep a ref in sync with the enemyGrowthLevel state
+  // Keep refs in sync with state
   useEffect(() => {
     enemyGrowthLevelRef.current = enemyGrowthLevel;
   }, [enemyGrowthLevel]);
+
+  useEffect(() => {
+    energyRef.current = energy;
+  }, [energy]);
 
   // Handle resize
   useEffect(() => {
@@ -200,14 +206,28 @@ export const useGameLoop = () => {
       );
 
       if (laserUpdate && laserPhysicsRef.current) {
+        const previousScore = scoreRef.current;
         scoreRef.current += laserUpdate.scoreChange;
+
+        // Add energy for each laser jumped over (1 point = 1 energy)
+        if (laserUpdate.scoreChange > 0) {
+          setEnergy(prev => {
+            const newEnergy = Math.min(100, prev + laserUpdate.scoreChange);
+            // Unlock shooting once energy reaches 100 for the first time
+            if (newEnergy >= 100 && !canShoot) {
+              setCanShoot(true);
+            }
+            return newEnergy;
+          });
+        }
+
         if (laserUpdate.wasHit) {
           setWasHit(true);
           audioManagerRef.current?.playLaserHit();
           setTimeout(() => setWasHit(false), 250);
         }
 
-        // Handle enemy hits (Level 2 feature)
+        // Handle enemy hits on player (always active, not level-based)
         if (laserUpdate.enemyHitCount > 0) {
           setEnemyHits((prev) => {
             const newHits = prev + laserUpdate.enemyHitCount;
@@ -250,15 +270,8 @@ export const useGameLoop = () => {
         setLasers(laserPhysicsRef.current.getLasers());
       }
 
-      // Level progression
-      if (scoreRef.current >= LEVEL_3_SCORE_THRESHOLD && level < 3) {
-        setLevel(3);
-      } else if (scoreRef.current >= LEVEL_2_SCORE_THRESHOLD && level === 1) {
-        setLevel(2);
-      }
-
-      // Handle projectiles & enemy hits
-      if (scoreRef.current >= 100) {
+      // Handle projectiles & enemy hits (only when player can shoot)
+      if (canShoot && energyRef.current > 0) {
         setPlayerProjectiles((prev) =>
           prev
             .map((projectile) => {
@@ -375,9 +388,16 @@ export const useGameLoop = () => {
   }, [gameOver]);
 
   const handleShoot = useCallback(() => {
-    if (gameOver || scoreRef.current < 100) return; // Shooting unlocks at score 100
+    if (gameOver || !canShoot || energyRef.current <= 0) return; // Can only shoot if canShoot is true and energy > 0
     const currentPlayerState = playerPhysicsRef.current?.getState();
     if (!currentPlayerState) return;
+
+    // Calculate shoot speed based on energy level
+    const energyLevel = energyRef.current;
+    const shootDelay = energyLevel < 50 ? 300 : 150; // Half speed if energy < 50%
+
+    // Drain energy when shooting
+    setEnergy(prev => Math.max(0, prev - 1)); // Drain 1 energy per shot
 
     const newProjectile: PlayerProjectile = {
       x: currentPlayerState.position.x + BALL_SIZE / 2,
@@ -386,7 +406,7 @@ export const useGameLoop = () => {
     };
 
     setPlayerProjectiles((prev) => [...prev, newProjectile]);
-  }, [gameOver]);
+  }, [gameOver, canShoot]);
 
   const handleTestScore = useCallback(() => {
     scoreRef.current += 75;
@@ -420,14 +440,14 @@ export const useGameLoop = () => {
     setPlayerOuts(0);
     setEnemyOuts(0);
     setShootGameOver(false);
-    setLevel(1);
+    setEnergy(0); // Reset energy bar
+    setCanShoot(false); // Reset shooting ability
   }, [playerState]);
 
-  // Test function to jump to Level 2
-  const jumpToLevel2 = useCallback(() => {
-    scoreRef.current = 100;
-    setScore(100);
-    setLevel(2);
+  // Test function to fill energy and unlock shooting
+  const testEnergy = useCallback(() => {
+    setEnergy(100);
+    setCanShoot(true);
   }, []);
 
   return {
@@ -442,7 +462,8 @@ export const useGameLoop = () => {
     numLasers,
     wasHit,
     playerProjectiles,
-    level,
+    energy,
+    canShoot,
     enemyHits,
     playerOuts,
     enemyOuts,
@@ -459,6 +480,6 @@ export const useGameLoop = () => {
     handleShoot,
     handleRestart,
     handleTestScore,
-    jumpToLevel2, // Test function
+    testEnergy, // Test function to unlock shooting
   };
 };

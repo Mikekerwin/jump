@@ -41,15 +41,15 @@ export const SCORE_PER_LASER_UNLOCK = 25; // Score needed to unlock new laser
 
 // 🌪 LASER CHAOS / RANDOMNESS (increases every 5 points, resets every 25)
 export const CHAOS_INCREMENT_INTERVAL = 5; // Points between chaos increases
-export const BASE_LASER_RANDOMNESS = 0.7; // Base randomness factor (70% of screen - more extreme movement)
-export const CHAOS_MULTIPLIER_PER_INTERVAL = 0.25; // Additional randomness per 5 points (more dramatic)
+export const BASE_LASER_RANDOMNESS = 1.0; // Base randomness factor (100% of available range - full randomness)
+export const CHAOS_MULTIPLIER_PER_INTERVAL = 0.0; // No additional randomness (already at max)
 
 // ⚡️ DIFFICULTY SCALING
 export const SCORE_PER_SPEED_INCREMENT = 5;
 export const SPEED_INCREMENTS_PER_CYCLE = 5;
 
 // 🌌 BACKGROUND CONFIGURATION
-export const NUM_STARS = 100;
+export const NUM_STARS = 90;
 export const STAR_SPEED = 1;
 // Background image configuration
 // In development, PUBLIC_URL is typically empty, so we use relative path
@@ -74,7 +74,7 @@ export const ENEMY_X_POSITION = 0.9;   // 90% from left
 export const BOUNCE_SOUND_PATH = `${process.env.PUBLIC_URL}/bounce.mp3`;
 export const LASER_HIT_SOUND_PATH = `${process.env.PUBLIC_URL}/lazerHit.mp3`;
 export const BACKGROUND_MUSIC_PATH = `${process.env.PUBLIC_URL}/audioTrack.mp3`;
-export const BACKGROUND_MUSIC_VOLUME = 0.25;
+export const BACKGROUND_MUSIC_VOLUME = 0.20;
 export const BOUNCE_DEBOUNCE_MS = 150;
 
 // 🎮 GAMEPLAY BALANCE
