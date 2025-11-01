@@ -182,8 +182,8 @@ const App: React.FC = () => {
           {/* Score Display */}
           <ScoreDisplay score={score} />
 
-          {/* Player Hit Counter (Score 100+) */}
-          {score >= 100 && !gameOver && (
+          {/* Player Hit Counter (Shows after unlocking shooting) */}
+          {canShoot && !gameOver && (
             <div
               style={{
                 position: 'absolute',
@@ -250,8 +250,8 @@ const App: React.FC = () => {
             />
           ))}
 
-          {/* Player Projectiles (Score 100+) */}
-          {score >= 100 && playerProjectiles.map((projectile, index) => (
+          {/* Player Projectiles (After unlocking shooting) */}
+          {canShoot && playerProjectiles.map((projectile, index) => (
             <PlayerProjectile
               key={index}
               x={projectile.x}

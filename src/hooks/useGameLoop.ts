@@ -206,20 +206,25 @@ export const useGameLoop = () => {
       );
 
       if (laserUpdate && laserPhysicsRef.current) {
-        const previousScore = scoreRef.current;
-        scoreRef.current += laserUpdate.scoreChange;
-
-        // Add energy for each laser jumped over (1 point = 1 energy)
+        // Only add positive score changes (jumping over lasers)
         if (laserUpdate.scoreChange > 0) {
-          setEnergy(prev => {
-            const newEnergy = Math.min(100, prev + laserUpdate.scoreChange);
-            // Unlock shooting once energy reaches 100 for the first time
-            if (newEnergy >= 100 && !canShoot) {
-              setCanShoot(true);
-            }
-            return newEnergy;
-          });
+          scoreRef.current += laserUpdate.scoreChange;
+
+          // Before unlocking: energy = score (sync up to 100)
+          // After unlocking: energy fills independently from jumping
+          if (!canShoot) {
+            setEnergy(Math.min(100, scoreRef.current));
+          } else {
+            // After unlock, jumping fills energy
+            setEnergy(prev => Math.min(100, prev + laserUpdate.scoreChange));
+          }
+
+          // Unlock shooting once score reaches 100 for the first time
+          if (scoreRef.current >= 100 && !canShoot) {
+            setCanShoot(true);
+          }
         }
+        // Remove penalty for not jumping - lasers can pass without score loss
 
         if (laserUpdate.wasHit) {
           setWasHit(true);
@@ -270,8 +275,8 @@ export const useGameLoop = () => {
         setLasers(laserPhysicsRef.current.getLasers());
       }
 
-      // Handle projectiles & enemy hits (only when player can shoot)
-      if (canShoot && energyRef.current > 0) {
+      // Handle projectiles & enemy hits (once unlocked, projectiles always move)
+      if (canShoot) {
         setPlayerProjectiles((prev) =>
           prev
             .map((projectile) => {
@@ -392,12 +397,8 @@ export const useGameLoop = () => {
     const currentPlayerState = playerPhysicsRef.current?.getState();
     if (!currentPlayerState) return;
 
-    // Calculate shoot speed based on energy level
-    const energyLevel = energyRef.current;
-    const shootDelay = energyLevel < 50 ? 300 : 150; // Half speed if energy < 50%
-
-    // Drain energy when shooting
-    setEnergy(prev => Math.max(0, prev - 1)); // Drain 1 energy per shot
+    // Drain energy when shooting (NOT score)
+    setEnergy(prev => Math.max(0, prev - 1));
 
     const newProjectile: PlayerProjectile = {
       x: currentPlayerState.position.x + BALL_SIZE / 2,
@@ -446,8 +447,11 @@ export const useGameLoop = () => {
 
   // Test function to fill energy and unlock shooting
   const testEnergy = useCallback(() => {
+    scoreRef.current = 100;
+    setScore(100);
     setEnergy(100);
     setCanShoot(true);
+    laserPhysicsRef.current?.setScore(100);
   }, []);
 
   return {
