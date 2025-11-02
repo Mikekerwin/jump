@@ -302,8 +302,8 @@ export const useGameLoop = () => {
           setEnemyHits((prevEnemyHits) => {
             const newEnemyHits = prevEnemyHits + 1;
 
-            // Check if enemy completes a cycle (20 hits)
-            if (newEnemyHits >= HITS_PER_OUT) {
+            // Check if enemy completes a cycle (exactly 20 hits)
+            if (newEnemyHits === HITS_PER_OUT) {
               // Award exactly 1 out to the enemy (never more)
               setEnemyOuts((prevEnemyOuts) => {
                 const newEnemyOuts = prevEnemyOuts + 1;
@@ -372,8 +372,8 @@ export const useGameLoop = () => {
                   setHitCount((prevHit) => {
                     const newHitCount = prevHit + 1;
 
-                    // Check if we hit 20 (one cycle complete)
-                    if (newHitCount >= HITS_PER_OUT) {
+                    // Check if we hit exactly 20 (one cycle complete)
+                    if (newHitCount === HITS_PER_OUT) {
                       // Award exactly 1 out to the player (never more)
                       setPlayerOuts((prevOuts) => {
                         const newOuts = prevOuts + 1;
