@@ -126,6 +126,7 @@ export const GROUND_IMAGE_PATH = process.env.PUBLIC_URL
   ? `${process.env.PUBLIC_URL}/forest_light_ground.png`
   : '/forest_light_ground.png';
 export const GROUND_SCROLL_SPEED = 1; // Same speed as stars (faster than background for parallax)
+export const GROUND_HEIGHT_EXTENSION = 50; // Extra pixels to extend ground upward (experiment with this value!)
 
 // Background overlay gradient (applied over scrolling background, under stars)
 // Gradient goes from bottom (start) to top (end) of screen

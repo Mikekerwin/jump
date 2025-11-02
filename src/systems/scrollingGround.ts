@@ -3,7 +3,7 @@
  * Handles smooth horizontal scrolling of repeating ground image (foreground layer)
  */
 
-import { GROUND_SCROLL_SPEED } from '../config/gameConfig';
+import { GROUND_SCROLL_SPEED, GROUND_HEIGHT_EXTENSION } from '../config/gameConfig';
 
 export class ScrollingGround {
   private offsetX: number = 0;
@@ -49,11 +49,11 @@ export class ScrollingGround {
     const scaledWidth = this.imageWidth * scale;
     const scaledHeight = this.imageHeight * scale;
 
-    // Add 10px to height while maintaining aspect ratio
-    const extraHeight = 10;
-    const heightScale = (scaledHeight + extraHeight) / scaledHeight;
+    // Add extra height while maintaining aspect ratio
+    // Adjust GROUND_HEIGHT_EXTENSION in gameConfig.ts to experiment!
+    const heightScale = (scaledHeight + GROUND_HEIGHT_EXTENSION) / scaledHeight;
     const adjustedWidth = scaledWidth * heightScale;
-    const adjustedHeight = scaledHeight + extraHeight;
+    const adjustedHeight = scaledHeight + GROUND_HEIGHT_EXTENSION;
 
     // Position at the bottom of the screen (adjusted for new height)
     const yPosition = canvasHeight - adjustedHeight;
