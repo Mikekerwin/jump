@@ -317,17 +317,16 @@ export const useGameLoop = () => {
                 return Math.min(newEnemyOuts, MAX_OUTS);
               });
 
-              // Player grows when enemy completes a cycle (every 20 hits on player)
-              const completedCycles = Math.floor(newEnemyHits / HITS_PER_OUT);
+              // Player grows by 1 level when enemy gets an out (hits player 20 times)
               setPlayerGrowthLevel((prevGrowth) => {
-                const newGrowth = Math.min(prevGrowth + completedCycles, MAX_GROWTH_LEVELS);
+                const newGrowth = Math.min(prevGrowth + 1, MAX_GROWTH_LEVELS);
                 playerGrowthLevelRef.current = newGrowth;
                 return newGrowth;
               });
 
-              // Enemy shrinks when they get an out (reward for hitting player 20 times)
+              // Enemy shrinks by 1 level when they get an out (reward for hitting player 20 times)
               setEnemyGrowthLevel((prevGrowth) => {
-                const newGrowth = Math.max(prevGrowth - completedCycles, 0);
+                const newGrowth = Math.max(prevGrowth - 1, 0);
                 enemyGrowthLevelRef.current = newGrowth;
                 laserPhysicsRef.current?.setEnemyGrowthLevel(enemyGrowthLevelRef.current);
                 return newGrowth;
@@ -389,18 +388,17 @@ export const useGameLoop = () => {
                         return Math.min(newOuts, MAX_OUTS);
                       });
 
-                      // Enemy grows when player completes a cycle (every 20 hits)
-                      const completedCycles = Math.floor(newHitCount / HITS_PER_OUT);
+                      // Enemy grows by 1 level when player gets an out (hits enemy 20 times)
                       setEnemyGrowthLevel((prevGrowth) => {
-                        const newGrowth = Math.min(prevGrowth + completedCycles, MAX_GROWTH_LEVELS);
+                        const newGrowth = Math.min(prevGrowth + 1, MAX_GROWTH_LEVELS);
                         enemyGrowthLevelRef.current = newGrowth;
                         laserPhysicsRef.current?.setEnemyGrowthLevel(enemyGrowthLevelRef.current);
                         return newGrowth;
                       });
 
-                      // Player shrinks when they get an out (reward for hitting enemy 20 times)
+                      // Player shrinks by 1 level when they get an out (reward for hitting enemy 20 times)
                       setPlayerGrowthLevel((prevGrowth) => {
-                        const newGrowth = Math.max(prevGrowth - completedCycles, 0);
+                        const newGrowth = Math.max(prevGrowth - 1, 0);
                         playerGrowthLevelRef.current = newGrowth;
                         return newGrowth;
                       });
