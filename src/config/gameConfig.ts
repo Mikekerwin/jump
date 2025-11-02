@@ -113,13 +113,20 @@ export const CHAOS_MULTIPLIER_PER_INTERVAL = 0.0; // No additional randomness (a
 // 🌌 BACKGROUND CONFIGURATION
 export const NUM_STARS = 90;
 export const STAR_SPEED = 1;
-// Background image configuration
-// In development, PUBLIC_URL is typically empty, so we use relative path
+export const STARS_ENABLED = false; // Toggle stars on/off (keeping code for future use)
+
+// Background image configuration (forest trees - far background)
 export const BACKGROUND_IMAGE_PATH = process.env.PUBLIC_URL
-  ? `${process.env.PUBLIC_URL}/background.png`
-  : '/background.png';
-export const BACKGROUND_SCROLL_SPEED = 0.5; // Slower than stars
-export const BACKGROUND_HEIGHT_SCALE = 1.4; // Make background 15% taller while maintaining ratio
+  ? `${process.env.PUBLIC_URL}/forest_light_trees.jpg`
+  : '/forest_light_trees.jpg';
+export const BACKGROUND_SCROLL_SPEED = 0.5; // Speed for far background trees
+
+// Ground image configuration (forest ground - foreground layer)
+export const GROUND_IMAGE_PATH = process.env.PUBLIC_URL
+  ? `${process.env.PUBLIC_URL}/forest_light_ground.png`
+  : '/forest_light_ground.png';
+export const GROUND_SCROLL_SPEED = 1; // Same speed as stars (faster than background for parallax)
+
 // Background overlay gradient (applied over scrolling background, under stars)
 // Gradient goes from bottom (start) to top (end) of screen
 // Format: 'rgba(red, green, blue, alpha)' where alpha is 0 (transparent) to 1 (opaque)

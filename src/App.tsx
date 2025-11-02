@@ -14,6 +14,7 @@ import { ScoreDisplay } from './components/ScoreDisplay';
 import { FullscreenButton } from './components/FullscreenButton';
 import { SoundToggleButton } from './components/SoundToggleButton';
 import { EnergyBar } from './components/EnergyBar';
+import { STARS_ENABLED } from './config/gameConfig';
 
 const App: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -41,6 +42,7 @@ const App: React.FC = () => {
     dimensions,
     backgroundStars,
     scrollingBackground,
+    scrollingGround,
     isMuted,
     handleJumpStart,
     handleJumpEnd,
@@ -52,10 +54,10 @@ const App: React.FC = () => {
   } = useGameLoop();
 
   /**
-   * Render scrolling background and stars
+   * Render scrolling background, ground, and stars (if enabled)
    */
   useEffect(() => {
-    if (!canvasRef.current || !backgroundStars || !scrollingBackground) return;
+    if (!canvasRef.current || !backgroundStars || !scrollingBackground || !scrollingGround) return;
 
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx) return;
@@ -64,11 +66,16 @@ const App: React.FC = () => {
       // Clear canvas
       ctx.clearRect(0, 0, dimensions.width, dimensions.height);
 
-      // Render scrolling background first (behind stars)
+      // Render scrolling background first (far background - trees)
       scrollingBackground.render(ctx, dimensions.width, dimensions.height);
 
-      // Render stars on top
-      backgroundStars.render(ctx);
+      // Render stars on top of background (if enabled)
+      if (STARS_ENABLED) {
+        backgroundStars.render(ctx);
+      }
+
+      // Render scrolling ground last (foreground layer - on top of everything else on canvas)
+      scrollingGround.render(ctx, dimensions.width, dimensions.height);
 
       if (!gameOver) {
         requestAnimationFrame(renderLoop);
@@ -76,7 +83,7 @@ const App: React.FC = () => {
     };
 
     requestAnimationFrame(renderLoop);
-  }, [backgroundStars, scrollingBackground, gameOver, dimensions]);
+  }, [backgroundStars, scrollingBackground, scrollingGround, gameOver, dimensions]);
 
   /**
    * Setup input controls

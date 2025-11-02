@@ -10,6 +10,7 @@ import { LaserPhysics } from '../systems/laserPhysics';
 import { AudioManager, setupAudioUnlock } from '../systems/audioManager';
 import { BackgroundStars } from '../systems/backgroundStars';
 import { ScrollingBackground } from '../systems/scrollingBackground';
+import { ScrollingGround } from '../systems/scrollingGround';
 import { PlayerState, LaserState, PlayerProjectile } from '../types/game';
 import {
   PLAYER_X_POSITION,
@@ -24,6 +25,7 @@ import {
   MAX_OUTS,
   HITS_PER_OUT,
   BACKGROUND_IMAGE_PATH,
+  GROUND_IMAGE_PATH,
   calculateResponsiveBallSize,
   calculateHorizontalRanges,
   calculateResponsiveLaserSize,
@@ -81,6 +83,7 @@ export const useGameLoop = () => {
   const audioManagerRef = useRef<AudioManager | null>(null);
   const backgroundStarsRef = useRef<BackgroundStars | null>(null);
   const scrollingBackgroundRef = useRef<ScrollingBackground | null>(null);
+  const scrollingGroundRef = useRef<ScrollingGround | null>(null);
 
   const scoreRef = useRef(0);
   const gameOverRef = useRef(false); // Immediate game over flag
@@ -153,6 +156,7 @@ export const useGameLoop = () => {
 
     backgroundStarsRef.current = new BackgroundStars(dims.width, dims.height);
     scrollingBackgroundRef.current = new ScrollingBackground(BACKGROUND_IMAGE_PATH);
+    scrollingGroundRef.current = new ScrollingGround(GROUND_IMAGE_PATH);
 
     setPlayerState(playerPhysicsRef.current.getState());
     setLasers(laserPhysicsRef.current.getLasers());
@@ -212,6 +216,7 @@ export const useGameLoop = () => {
       );
       backgroundStarsRef.current?.updateDimensions(dims.width, dims.height);
       scrollingBackgroundRef.current?.updateDimensions(dims.width, dims.height);
+      scrollingGroundRef.current?.updateDimensions(dims.width, dims.height);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -227,6 +232,7 @@ export const useGameLoop = () => {
       if (gameOverRef.current) return;
 
       scrollingBackgroundRef.current?.update();
+      scrollingGroundRef.current?.update();
       backgroundStarsRef.current?.update();
       laserPhysicsRef.current?.updateLaserCount(scoreRef.current);
       setNumLasers(laserPhysicsRef.current?.getNumLasers() || 1);
@@ -514,6 +520,7 @@ export const useGameLoop = () => {
     laserPhysicsRef.current?.reset();
     backgroundStarsRef.current?.reset();
     scrollingBackgroundRef.current?.reset();
+    scrollingGroundRef.current?.reset();
     setPlayerState(playerPhysicsRef.current?.getState() || playerState);
     setLasers(laserPhysicsRef.current?.getLasers() || []);
     setEnemyY(laserPhysicsRef.current?.getEnemyY() || dims.centerY);
@@ -574,6 +581,7 @@ export const useGameLoop = () => {
     dimensions: dimensionsRef.current,
     backgroundStars: backgroundStarsRef.current,
     scrollingBackground: scrollingBackgroundRef.current,
+    scrollingGround: scrollingGroundRef.current,
     isMuted,
     handleJumpStart,
     handleJumpEnd,
