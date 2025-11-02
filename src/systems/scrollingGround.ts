@@ -49,8 +49,9 @@ export class ScrollingGround {
     const scaledWidth = this.imageWidth * scale;
     const scaledHeight = this.imageHeight * scale;
 
-    // Add 20px to height to extend ground upward while keeping bottom edge at screen bottom
-    const adjustedHeight = scaledHeight + 20;
+    // Extend ground significantly higher since the perspective ground line is in the middle
+    // This ensures the player appears to be on the actual ground in the image
+    const adjustedHeight = scaledHeight * 2.5; // 2.5x taller to accommodate perspective
 
     // Position at the bottom of the screen (adjusted for new height)
     const yPosition = canvasHeight - adjustedHeight;
