@@ -10,16 +10,8 @@ import {
   LASER_WIDTH,
   LASER_HEIGHT,
   BASE_LASER_SPEED,
-  LASER_SPEED_INCREMENT,
-  LASER_SPEED_REDUCTION_ON_UNLOCK,
-  LASER_SPEED_GRADUAL_REDUCTION,
-  LASER_SPEED_AT_SCORE_50,
-  LASER_SPEED_AT_SCORE_75,
-  LASER_SPEED_TRANSITION_DURATION,
   MAX_LASERS,
   SCORE_PER_LASER_UNLOCK,
-  SCORE_PER_SPEED_INCREMENT,
-  SPEED_INCREMENTS_PER_CYCLE,
   BALL_SIZE,
   ENEMY_MOVE_SPEED,
   ENEMY_MOVEMENT_DELAY,
@@ -39,11 +31,6 @@ export class LaserPhysics {
   private lasers: LaserState[] = [];
   private numLasers: number = 1;
   private baseSpeed: number = BASE_LASER_SPEED;
-  private speedResetScore: number = -1; // Track when speed was last reset (for score 50 logic)
-  private isTransitioningSpeed: boolean = false; // Track if speed is currently transitioning
-  private transitionStartSpeed: number = 0; // Speed at start of transition
-  private transitionTargetSpeed: number = 0; // Target speed for transition
-  private transitionProgress: number = 0; // Progress of transition (0 to 1)
   private enemyY: number;
   private targetEnemyY: number; // Target Y position for smooth movement
   private startEnemyY: number; // Starting Y position for ease-in calculation
@@ -158,7 +145,6 @@ export class LaserPhysics {
    * Initialize lasers at starting positions
    */
   private initializeLasers(): void {
-    const currentEnemyWidth = this.ballSize + (this.enemyGrowthLevel * ENEMY_WIDTH_GROWTH_PER_CYCLE);
     const firstLaserY = this.centerY;
     const nextLaserY = this.generateRandomLaserY(0);
 
@@ -245,16 +231,6 @@ export class LaserPhysics {
     
     // Sync laser count at the start of the frame to prevent desync issues
     this.updateLaserCount(score);
-    
-    // Update speed transition progress
-    if (this.isTransitioningSpeed) {
-      // Increment progress (assuming ~16.67ms per frame at 60 FPS)
-      this.transitionProgress += 16.67 / LASER_SPEED_TRANSITION_DURATION;
-      if (this.transitionProgress >= 1) {
-        this.transitionProgress = 1;
-        this.isTransitioningSpeed = false; // Transition complete
-      }
-    }
 
     // Calculate the correct delay for evenly spaced lasers
     const laserSpeed = this.getCurrentSpeed(score);

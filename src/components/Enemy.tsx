@@ -5,8 +5,6 @@
  */
 
 import React from 'react';
-import { BALL_GROWTH_TRANSITION_DURATION } from '../config/gameConfig';
-
 
 interface EnemyProps {
   x: number;

@@ -5,7 +5,6 @@
 
 import React from 'react';
 import { PlayerState } from '../types/game';
-import { BALL_GROWTH_TRANSITION_DURATION } from '../config/gameConfig';
 
 interface PlayerProps {
   playerState: PlayerState;

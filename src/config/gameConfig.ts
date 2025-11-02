@@ -98,13 +98,7 @@ export const calculateResponsiveLaserSize = (ballSize: number) => {
 // These are now base values - actual values calculated responsively
 export const LASER_WIDTH = 25;
 export const LASER_HEIGHT = 2;
-export const BASE_LASER_SPEED = 5.5; // Constant laser speed (no more incrementing)
-export const LASER_SPEED_INCREMENT = 0; // Disabled - no longer incrementing speed
-export const LASER_SPEED_REDUCTION_ON_UNLOCK = 0; // Disabled
-export const LASER_SPEED_GRADUAL_REDUCTION = 0; // Disabled
-export const LASER_SPEED_AT_SCORE_50 = 5; // Disabled (using constant speed)
-export const LASER_SPEED_AT_SCORE_75 = 6; // Disabled (using constant speed)
-export const LASER_SPEED_TRANSITION_DURATION = 150; // Disabled
+export const BASE_LASER_SPEED = 5.5; // Constant laser speed
 export const MAX_LASERS = 4;
 export const SCORE_PER_LASER_UNLOCK = 25; // Score needed to unlock new laser
 export const WIDE_LASER_UNLOCK_SCORE = 100; // Score needed to enable wide lasers
@@ -115,10 +109,6 @@ export const WIDE_LASER_HIT_VALUE = 5; // How many hits a wide laser counts for
 export const CHAOS_INCREMENT_INTERVAL = 5; // Points between chaos increases
 export const BASE_LASER_RANDOMNESS = 1.0; // Base randomness factor (100% of available range - full randomness)
 export const CHAOS_MULTIPLIER_PER_INTERVAL = 0.0; // No additional randomness (already at max)
-
-// ⚡️ DIFFICULTY SCALING
-export const SCORE_PER_SPEED_INCREMENT = 5;
-export const SPEED_INCREMENTS_PER_CYCLE = 5;
 
 // 🌌 BACKGROUND CONFIGURATION
 export const NUM_STARS = 90;
