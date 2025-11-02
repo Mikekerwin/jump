@@ -54,7 +54,13 @@ export const PLAYER_PROJECTILE_SPEED = 8;
 export const PLAYER_PROJECTILE_WIDTH = 15;
 export const PLAYER_PROJECTILE_HEIGHT = 4;
 
-// Enemy growth every 20 hits — each level adds +25% to size
+// Player/Enemy growth system
+// Every 20 hits = 1 out = opponent grows 1 level
+// When you get an out (hit opponent 20 times), you shrink 1 level
+export const GROWTH_SCALE_PER_LEVEL = 0.10; // 10% size increase per level (experiment with this!)
+export const MAX_GROWTH_LEVELS = 10; // Maximum 10 levels of growth (experiment with this!)
+
+// Legacy constants (kept for compatibility)
 export const ENEMY_WIDTH_GROWTH_PER_CYCLE = BALL_SIZE * 0.25;
 export const ENEMY_HEIGHT_GROWTH_PER_CYCLE = BALL_SIZE * 0.25;
 

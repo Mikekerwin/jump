@@ -5,13 +5,14 @@
  */
 
 import React from 'react';
+import { GROWTH_SCALE_PER_LEVEL } from '../config/gameConfig';
 
 interface EnemyProps {
   x: number;
   y: number;
   scaleX?: number; // Squash/stretch animation on X axis
   scaleY?: number; // Squash/stretch animation on Y axis
-  growthLevel?: number; // 0-4 for size growth (each level adds 25px)
+  growthLevel?: number; // Growth level (each level scales by GROWTH_SCALE_PER_LEVEL)
   isHit?: boolean; // Whether enemy was just hit by player projectile
   onShoot?: () => void; // Handler for shooting when clicking/touching enemy
   ballSize?: number; // Responsive ball size (defaults to 80)
@@ -27,9 +28,10 @@ export const Enemy = React.memo(React.forwardRef<HTMLDivElement, EnemyProps>(
       }
     };
 
-    // Calculate actual size based on growth level (25% per level)
-    const growthAmount = growthLevel * 25; // 0, 25, 50, 75, 100
-    const actualSize = ballSize + growthAmount; // Use responsive ball size + growth
+    // Calculate actual size based on growth level using scale multiplier
+    const growthScale = 1 + (growthLevel * GROWTH_SCALE_PER_LEVEL); // 1.0, 1.1, 1.2, 1.3, etc
+    const actualSize = ballSize * growthScale;
+    const growthAmount = actualSize - ballSize; // Calculate growth for centering
 
     // Offset position to keep ball centered as it grows
     const centeredLeft = x - (growthAmount / 2);
