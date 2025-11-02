@@ -23,14 +23,15 @@ import {
   PLAYER_PROJECTILE_HEIGHT,
   ENEMY_WIDTH_GROWTH_PER_CYCLE,
   ENEMY_HEIGHT_GROWTH_PER_CYCLE,
-  LEVEL_2_SCORE_THRESHOLD,
-  LEVEL_3_SCORE_THRESHOLD,
-  ENEMY_HITS_FOR_GROWTH,
   MAX_GROWTH_CYCLES,
   MAX_OUTS,
   HITS_PER_OUT,
   BACKGROUND_IMAGE_PATH,
 } from '../config/gameConfig';
+
+// Shooting speed configuration (in milliseconds)
+const MAX_SHOOT_SPEED = 25;  // Fastest shooting rate at 80% energy or above
+const MIN_SHOOT_SPEED = 350; // Slowest shooting rate at 20% energy or below
 
 export const useGameLoop = () => {
   // Game state
@@ -61,6 +62,8 @@ export const useGameLoop = () => {
   const [energy, setEnergy] = useState(0); // Energy bar (0-100) - fills on jump, drains on shoot
   const energyRef = useRef(energy); // Ref for immediate access in game loop
   const [canShoot, setCanShoot] = useState(false); // Player can shoot once energy reaches 100
+  const canShootRef = useRef(canShoot); // Ref for immediate access in game loop
+  const lastShootTimeRef = useRef(0); // Track last shoot time for rate limiting
   const [enemyHits, setEnemyHits] = useState(0); // Track enemy hits on player
   const [playerGrowthLevel, setPlayerGrowthLevel] = useState(0); // Track player growth from enemy hits
   const playerGrowthLevelRef = useRef(playerGrowthLevel); // Ref for immediate access in game loop
@@ -137,6 +140,10 @@ export const useGameLoop = () => {
     energyRef.current = energy;
   }, [energy]);
 
+  useEffect(() => {
+    canShootRef.current = canShoot;
+  }, [canShoot]);
+
   // Handle resize
   useEffect(() => {
     const handleResize = () => {
@@ -212,15 +219,15 @@ export const useGameLoop = () => {
 
           // Before unlocking: energy = score (sync up to 100)
           // After unlocking: energy fills independently from jumping
-          if (!canShoot) {
+          if (!canShootRef.current) {
             setEnergy(Math.min(100, scoreRef.current));
           } else {
-            // After unlock, jumping fills energy
-            setEnergy(prev => Math.min(100, prev + laserUpdate.scoreChange));
+            // After unlock, jumping fills energy by 1 per laser
+            setEnergy(prev => Math.min(100, prev + 2));
           }
 
           // Unlock shooting once score reaches 100 for the first time
-          if (scoreRef.current >= 100 && !canShoot) {
+          if (scoreRef.current >= 100 && !canShootRef.current) {
             setCanShoot(true);
           }
         }
@@ -230,44 +237,40 @@ export const useGameLoop = () => {
           setWasHit(true);
           audioManagerRef.current?.playLaserHit();
           setTimeout(() => setWasHit(false), 250);
-        }
 
-        // Handle enemy hits on player (always active, not level-based)
-        if (laserUpdate.enemyHitCount > 0) {
-          setEnemyHits((prev) => {
-            const newHits = prev + laserUpdate.enemyHitCount;
+          // Enemy scores when laser hits player
+          setEnemyHits((prevEnemyHits) => {
+            const newEnemyHits = prevEnemyHits + 1;
 
-            // Check if we hit 20 (one cycle complete)
-            if (newHits >= HITS_PER_OUT) {
+            // Check if enemy completes a cycle (20 hits)
+            if (newEnemyHits >= HITS_PER_OUT) {
               // Award an out to the enemy
-              setEnemyOuts((prevOuts) => {
-                const newOuts = prevOuts + Math.floor(newHits / HITS_PER_OUT);
+              setEnemyOuts((prevEnemyOuts) => {
+                const newEnemyOuts = prevEnemyOuts + Math.floor(newEnemyHits / HITS_PER_OUT);
 
-                // Check for "Shoot!" game over when enemy reaches 10 outs
-                if (newOuts >= MAX_OUTS) {
+                // Check for enemy victory (10 outs)
+                if (newEnemyOuts >= MAX_OUTS) {
                   gameOverRef.current = true; // Immediately stop game loop
-                  setShootGameOver(true);
                   setGameOver(true);
                 }
 
-                return Math.min(newOuts, MAX_OUTS);
+                return Math.min(newEnemyOuts, MAX_OUTS);
               });
 
-              // Player grows when enemy completes a cycle (every 20 hits)
-              const completedCycles = Math.floor(newHits / HITS_PER_OUT);
+              // Player grows when enemy completes a cycle (every 20 hits on player)
+              const completedCycles = Math.floor(newEnemyHits / HITS_PER_OUT);
               setPlayerGrowthLevel((prevGrowth) => {
                 const newGrowth = prevGrowth + completedCycles;
+                playerGrowthLevelRef.current = newGrowth >= MAX_GROWTH_CYCLES ? 0 : newGrowth;
                 // Cap at MAX_GROWTH_CYCLES, then reset to 0
-                const finalGrowth = newGrowth >= MAX_GROWTH_CYCLES ? 0 : newGrowth;
-                playerGrowthLevelRef.current = finalGrowth; // Update ref immediately
-                return finalGrowth;
+                return playerGrowthLevelRef.current;
               });
 
-              // Reset hits counter after awarding the out
-              return newHits % HITS_PER_OUT;
+              // Reset enemy hits counter after awarding the out
+              return newEnemyHits % HITS_PER_OUT;
             }
 
-            return newHits;
+            return newEnemyHits;
           });
         }
 
@@ -276,7 +279,9 @@ export const useGameLoop = () => {
       }
 
       // Handle projectiles & enemy hits (once unlocked, projectiles always move)
-      if (canShoot) {
+      if (canShootRef.current) {
+        let enemyHitThisFrame = false; // Track if enemy was hit this frame to prevent double counting
+
         setPlayerProjectiles((prev) =>
           prev
             .map((projectile) => {
@@ -295,44 +300,48 @@ export const useGameLoop = () => {
                 projectile.y < enemyCurrentY + currentEnemyHeight;
 
               if (hitEnemy) {
-                setHitCount((prevHit) => {
-                  const newHitCount = prevHit + 1;
+                // Only count one hit per frame, even if multiple projectiles hit
+                if (!enemyHitThisFrame) {
+                  enemyHitThisFrame = true;
+                  setHitCount((prevHit) => {
+                    const newHitCount = prevHit + 1;
 
-                  // Check if we hit 20 (one cycle complete)
-                  if (newHitCount >= HITS_PER_OUT) {
-                    // Award an out to the player
-                    setPlayerOuts((prevOuts) => {
-                      const newOuts = prevOuts + Math.floor(newHitCount / HITS_PER_OUT);
+                    // Check if we hit 20 (one cycle complete)
+                    if (newHitCount >= HITS_PER_OUT) {
+                      // Award an out to the player
+                      setPlayerOuts((prevOuts) => {
+                        const newOuts = prevOuts + Math.floor(newHitCount / HITS_PER_OUT);
 
-                      // Check for "Shoot!" game over
-                      if (newOuts >= MAX_OUTS) {
-                        gameOverRef.current = true; // Immediately stop game loop
-                        setShootGameOver(true);
-                        setGameOver(true);
-                      }
+                        // Check for "Shoot!" game over
+                        if (newOuts >= MAX_OUTS) {
+                          gameOverRef.current = true; // Immediately stop game loop
+                          setShootGameOver(true);
+                          setGameOver(true);
+                        }
 
-                      return Math.min(newOuts, MAX_OUTS);
-                    });
+                        return Math.min(newOuts, MAX_OUTS);
+                      });
 
-                    // Enemy grows when player completes a cycle (every 20 hits)
-                    const completedCycles = Math.floor(newHitCount / HITS_PER_OUT);
-                    setEnemyGrowthLevel((prevGrowth) => {
-                      const newGrowth = prevGrowth + completedCycles;
-                      enemyGrowthLevelRef.current = newGrowth >= MAX_GROWTH_CYCLES ? 0 : newGrowth;
-                      laserPhysicsRef.current?.setEnemyGrowthLevel(enemyGrowthLevelRef.current);
-                      // Cap at MAX_GROWTH_CYCLES, then reset to 0
-                      return enemyGrowthLevelRef.current;
-                    });
+                      // Enemy grows when player completes a cycle (every 20 hits)
+                      const completedCycles = Math.floor(newHitCount / HITS_PER_OUT);
+                      setEnemyGrowthLevel((prevGrowth) => {
+                        const newGrowth = prevGrowth + completedCycles;
+                        enemyGrowthLevelRef.current = newGrowth >= MAX_GROWTH_CYCLES ? 0 : newGrowth;
+                        laserPhysicsRef.current?.setEnemyGrowthLevel(enemyGrowthLevelRef.current);
+                        // Cap at MAX_GROWTH_CYCLES, then reset to 0
+                        return enemyGrowthLevelRef.current;
+                      });
 
-                    // Reset hits counter after awarding the out
-                    return newHitCount % HITS_PER_OUT;
-                  }
+                      // Reset hits counter after awarding the out
+                      return newHitCount % HITS_PER_OUT;
+                    }
 
-                  return newHitCount;
-                });
-                setEnemyWasHit(true);
-                audioManagerRef.current?.playLaserHit();
-                setTimeout(() => setEnemyWasHit(false), 250);
+                    return newHitCount;
+                  });
+                  setEnemyWasHit(true);
+                  audioManagerRef.current?.playLaserHit();
+                  setTimeout(() => setEnemyWasHit(false), 250);
+                }
                 return { ...projectile, active: false };
               }
 
@@ -394,11 +403,38 @@ export const useGameLoop = () => {
 
   const handleShoot = useCallback(() => {
     if (gameOver || !canShoot || energyRef.current <= 0) return; // Can only shoot if canShoot is true and energy > 0
+
+    const now = performance.now();
+    const currentEnergy = energyRef.current;
+
+    // Calculate shooting cooldown based on energy level
+    // 80% energy or above: MAX_SHOOT_SPEED (fastest)
+    // 20% energy or below: MIN_SHOOT_SPEED (slowest)
+    // Linear interpolation between 80% and 20%
+    let shootCooldown;
+    if (currentEnergy >= 80) {
+      shootCooldown = MAX_SHOOT_SPEED; // Max speed
+    } else if (currentEnergy <= 20) {
+      shootCooldown = MIN_SHOOT_SPEED; // Min speed
+    } else {
+      // Linear interpolation between 20% and 80%
+      const energyRange = 80 - 20; // 60%
+      const cooldownRange = MIN_SHOOT_SPEED - MAX_SHOOT_SPEED;
+      const energyRatio = (currentEnergy - 20) / energyRange; // 0 to 1
+      shootCooldown = MIN_SHOOT_SPEED - (energyRatio * cooldownRange);
+    }
+
+    // Check if enough time has passed since last shot
+    if (now - lastShootTimeRef.current < shootCooldown) {
+      return; // Too soon, can't shoot yet
+    }
+
     const currentPlayerState = playerPhysicsRef.current?.getState();
     if (!currentPlayerState) return;
 
-    // Drain energy when shooting (NOT score)
-    setEnergy(prev => Math.max(0, prev - 1));
+    // Drain energy by 1.5 when shooting (NOT score)
+    setEnergy(prev => Math.max(0, prev - 0.5));
+    lastShootTimeRef.current = now; // Update last shoot time
 
     const newProjectile: PlayerProjectile = {
       x: currentPlayerState.position.x + BALL_SIZE / 2,
@@ -458,6 +494,7 @@ export const useGameLoop = () => {
     score,
     gameOver,
     hitCount,
+    enemyHits, // Add enemyHits to exports
     enemyWasHit,
     playerState,
     lasers,
@@ -468,7 +505,6 @@ export const useGameLoop = () => {
     playerProjectiles,
     energy,
     canShoot,
-    enemyHits,
     playerOuts,
     enemyOuts,
     shootGameOver,

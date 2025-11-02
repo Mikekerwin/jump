@@ -26,7 +26,7 @@ export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ score }) => {
         WebkitTapHighlightColor: 'transparent',
       }}
     >
-      Score: {score}
+      Jumps: {score}
     </div>
   );
 };

@@ -29,6 +29,8 @@ export interface LaserState {
   width?: number; // Custom width for special lasers (e.g., double-width at score 100)
   isOscillating?: boolean; // Whether this laser oscillates in size (score 125+)
   oscillationPhase?: number; // Phase offset for oscillation animation
+  lastSpawnTime?: number; // Timestamp when this laser was last spawned
+  isWaitingToSpawn?: boolean; // Whether this laser is waiting for its turn to spawn
 }
 
 export interface PlayerProjectile {

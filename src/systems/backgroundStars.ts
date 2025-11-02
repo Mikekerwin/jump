@@ -46,22 +46,22 @@ export class BackgroundStars {
    * Render stars to canvas with gradient background overlay
    */
   render(ctx: CanvasRenderingContext2D): void {
+    // Draw all stars first, so they appear behind the gradient overlay.
+    ctx.fillStyle = 'white';
+    this.stars.forEach((star) => {
+      ctx.beginPath();
+      ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
     // Create gradient from bottom to top
     const gradient = ctx.createLinearGradient(0, this.screenHeight, 0, 0);
     gradient.addColorStop(0, BACKGROUND_OVERLAY_GRADIENT_START); // Bottom
     gradient.addColorStop(1, BACKGROUND_OVERLAY_GRADIENT_END);   // Top
 
-    // Apply gradient overlay (semi-transparent filter over scrolling background)
+    // Apply gradient overlay on top of the stars and scrolling background.
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, this.screenWidth, this.screenHeight);
-
-    // Draw all stars on top of overlay
-    this.stars.forEach((star) => {
-      ctx.beginPath();
-      ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2);
-      ctx.fillStyle = 'white';
-      ctx.fill();
-    });
   }
 
   /**

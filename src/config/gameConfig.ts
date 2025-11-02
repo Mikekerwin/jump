@@ -21,7 +21,7 @@ export const ENEMY_HEIGHT_GROWTH_PER_CYCLE = BALL_SIZE * 0.25;
 
 // ⚙️ PHYSICS PARAMETERS
 export const GRAVITY = 0.42;
-export const ENERGY_LOSS = 0.55; // Bounce energy retention
+export const ENERGY_LOSS = 0.5; // Bounce energy retention
 export const BOOST = 15.35; // Initial jump boost
 export const HOLD_BOOST = 0.16; // Continuous boost while holding
 export const MAX_HOLD_TIME = 2200; // Maximum hold duration in ms
@@ -29,15 +29,18 @@ export const MAX_HOLD_TIME = 2200; // Maximum hold duration in ms
 // 🔴 LASER CONFIGURATION
 export const LASER_WIDTH = 25;
 export const LASER_HEIGHT = 2;
-export const BASE_LASER_SPEED = 4.5;
-export const LASER_SPEED_INCREMENT = 1.2;
-export const LASER_SPEED_REDUCTION_ON_UNLOCK = 0; // Speed reduction when new laser unlocks (experiment with this!)
-export const LASER_SPEED_GRADUAL_REDUCTION = 0.1; // Gradual speed reduction per point between scores 25-50
-export const LASER_SPEED_AT_SCORE_50 = 5; // Total laser speed is SET TO this value at score 50 (3rd laser)
-export const LASER_SPEED_AT_SCORE_75 = 6; // Total laser speed is SET TO this value at score 75 (4th laser)
-export const LASER_SPEED_TRANSITION_DURATION = 150; // Duration in ms to ease to new speed when reset (e.g., at score 50/75)
+export const BASE_LASER_SPEED = 5.5; // Constant laser speed (no more incrementing)
+export const LASER_SPEED_INCREMENT = 0; // Disabled - no longer incrementing speed
+export const LASER_SPEED_REDUCTION_ON_UNLOCK = 0; // Disabled
+export const LASER_SPEED_GRADUAL_REDUCTION = 0; // Disabled
+export const LASER_SPEED_AT_SCORE_50 = 5; // Disabled (using constant speed)
+export const LASER_SPEED_AT_SCORE_75 = 6; // Disabled (using constant speed)
+export const LASER_SPEED_TRANSITION_DURATION = 150; // Disabled
 export const MAX_LASERS = 4;
 export const SCORE_PER_LASER_UNLOCK = 25; // Score needed to unlock new laser
+export const WIDE_LASER_UNLOCK_SCORE = 100; // Score needed to enable wide lasers
+export const WIDE_LASER_WIDTH = 125; // Width of the special wide laser
+export const WIDE_LASER_HIT_VALUE = 5; // How many hits a wide laser counts for
 
 // 🌪 LASER CHAOS / RANDOMNESS (increases every 5 points, resets every 25)
 export const CHAOS_INCREMENT_INTERVAL = 5; // Points between chaos increases
@@ -81,12 +84,9 @@ export const BOUNCE_DEBOUNCE_MS = 150;
 export const SCORE_UPDATE_INTERVAL = 200; // ms
 export const MIN_BOUNCE_VELOCITY = 0.3;   // Minimum velocity to trigger bounce
 
-// 🎯 LEVEL SYSTEM
-export const LEVEL_2_SCORE_THRESHOLD = 100; // Score needed to reach Level 2 (fighting mode)
-export const LEVEL_3_SCORE_THRESHOLD = 200; // Score needed to reach Level 3
-export const ENEMY_HITS_FOR_GROWTH = 20; // Enemy hits needed to grow (same as player's 20 hits)
+// 🎯 GAME PROGRESSION
 export const MAX_GROWTH_CYCLES = 5; // Maximum growth cycles before reset to original size
-export const MAX_OUTS = 10; // Maximum outs before game over or level transition
+export const MAX_OUTS = 10; // Maximum outs before game over
 export const HITS_PER_OUT = 20; // Hits needed to score an "out"
 
 // 🔴 ENEMY MOVEMENT & BEHAVIOR

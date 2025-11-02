@@ -26,6 +26,9 @@ import {
   CHAOS_INCREMENT_INTERVAL,
   BASE_LASER_RANDOMNESS,
   CHAOS_MULTIPLIER_PER_INTERVAL,
+  WIDE_LASER_UNLOCK_SCORE,
+  WIDE_LASER_WIDTH,
+  WIDE_LASER_HIT_VALUE,
 } from '../config/gameConfig';
 import {
   ENEMY_WIDTH_GROWTH_PER_CYCLE,
@@ -52,19 +55,24 @@ export class LaserPhysics {
   private enemyScaleX: number = 1; // Current scale X for smooth interpolation
   private enemyScaleY: number = 1; // Current scale Y for smooth interpolation
   private currentScore: number = 0; // Track current score for chaos calculation
-  private laserSpawnCounter: number = 0; // New: Counter for alternating laser widths
+  private lastWideLaserJumpCount: number = 0; // Track the jump count when the last wide laser was spawned
+  private jumpsSinceUnlock: number = 0; // Counter for jumps after shooting is unlocked
   private enemyGrowthLevel: number = 0; // How many times the enemy has grown
+  private lastLaserFireTime: number = 0; // Timer for evenly spaced lasers
   private centerY: number;
   private minLaserY: number;
   private enemyX: number;
+  private screenWidth: number;
 
   constructor(screenWidth: number, screenHeight: number, centerY: number, enemyX: number) {
+    this.lastLaserFireTime = Date.now();
     this.centerY = centerY;
     this.minLaserY = screenHeight * 0.2; // Allow enemy to go up to 20% from top (80% of screen height)
     this.enemyY = centerY;
     this.targetEnemyY = centerY;
     this.startEnemyY = centerY;
     this.enemyX = enemyX;
+    this.screenWidth = screenWidth;
     this.initializeLasers();
   }
 
@@ -87,12 +95,18 @@ export class LaserPhysics {
 
   /**
    * Determines the width of the next laser to spawn based on an alternating pattern.
-   * This ensures that one laser is normal width, the next is double width, and so on.
-   * This pattern activates when the score is 100 or more.
+   * After score 100, every 15th successful jump creates a wide laser.
    */
   private getNextLaserWidth(): number {
-    if (this.currentScore >= 100) { // Apply alternating width from score 100
-      return (this.laserSpawnCounter++ % 2 === 0) ? LASER_WIDTH : LASER_WIDTH * 2;
+    // Check if wide lasers are unlocked and if it's time for one
+    const isWideLaserTime = this.currentScore >= WIDE_LASER_UNLOCK_SCORE &&
+                            this.jumpsSinceUnlock > 0 &&
+                            this.jumpsSinceUnlock % 15 === 0;
+
+    // Ensure we only spawn one wide laser per 15-jump milestone
+    if (isWideLaserTime && this.jumpsSinceUnlock !== this.lastWideLaserJumpCount) {
+      this.lastWideLaserJumpCount = this.jumpsSinceUnlock; // Record that we've spawned for this milestone
+      return WIDE_LASER_WIDTH;
     }
     return LASER_WIDTH;
   }
@@ -121,6 +135,22 @@ export class LaserPhysics {
   }
 
   /**
+   * Calculate initial X position for a laser
+   * All lasers spawn at enemy position with small stagger for spacing
+   */
+  private getInitialLaserX(): number {
+    const currentEnemyWidth = BALL_SIZE + (this.enemyGrowthLevel * ENEMY_WIDTH_GROWTH_PER_CYCLE);
+    const enemySpawnX = this.enemyX + currentEnemyWidth / 2;
+    return enemySpawnX;
+    /*
+    // Small stagger: 200-400px between lasers (not across entire screen!) - Replaced by time-based delay
+    const STAGGER_DISTANCE = 350; // pixels between each laser
+    const offset = laserIndex * STAGGER_DISTANCE;
+
+    return enemySpawnX - offset;
+  */ }
+
+  /**
    * Initialize lasers at starting positions
    */
   private initializeLasers(): void {
@@ -130,7 +160,7 @@ export class LaserPhysics {
 
     this.lasers = [
       {
-        x: this.enemyX + currentEnemyWidth / 2, // Spawn from enemy center X
+        x: this.getInitialLaserX(), // Spawn from enemy center X
         y: firstLaserY,
         hit: false,
         scored: false,
@@ -150,56 +180,34 @@ export class LaserPhysics {
   updateLaserCount(score: number): void {
     this.currentScore = score; // Update score for chaos calculation
 
-    const extraLasers = Math.floor(score / SCORE_PER_LASER_UNLOCK);
+    const laserUnlocks = Math.floor(score / SCORE_PER_LASER_UNLOCK);
     const prevNumLasers = this.numLasers;
-    this.numLasers = Math.min(extraLasers + 1, MAX_LASERS);
+    // We need N+1 lasers for N to be visible on screen.
+    // Start with 2, then add more as score increases.
+    this.numLasers = Math.min(laserUnlocks + 2, MAX_LASERS);
 
-    // Reduce speed when new laser is added
+    // Add new lasers when count increases
     if (this.numLasers > prevNumLasers) {
-      // Special case: Reset total speed to specific value at score 50 (3rd laser)
-      if (this.numLasers === 3) {
-        // Start smooth transition to new speed
-        this.transitionStartSpeed = this.getCurrentSpeed(score);
-        this.transitionTargetSpeed = LASER_SPEED_AT_SCORE_50;
-        this.transitionProgress = 0;
-        this.isTransitioningSpeed = true;
+      // Only add NEW lasers with spacing
+      // Don't reposition existing lasers - they keep moving naturally
+      while (this.lasers.length < this.numLasers) {
+        const newLaserY = this.generateRandomLaserY(score);
 
-        // Reset baseSpeed and track when we reset
-        this.baseSpeed = LASER_SPEED_AT_SCORE_50;
-        this.speedResetScore = score; // Remember we reset at this score
-      }
-      // Special case: Reset total speed to specific value at score 75 (4th laser)
-      else if (this.numLasers === 4) {
-        // Start smooth transition to new speed
-        this.transitionStartSpeed = this.getCurrentSpeed(score);
-        this.transitionTargetSpeed = LASER_SPEED_AT_SCORE_75;
-        this.transitionProgress = 0;
-        this.isTransitioningSpeed = true;
-
-        // Reset baseSpeed and track when we reset
-        this.baseSpeed = LASER_SPEED_AT_SCORE_75;
-        this.speedResetScore = score; // Remember we reset at this score
-      }
-      else {
-        this.baseSpeed = Math.max(1, this.baseSpeed - LASER_SPEED_REDUCTION_ON_UNLOCK);
+        this.lasers.push({
+          // CRITICAL FIX: Add new lasers as "inactive" so the spawner can use them.
+          // This prevents them from clumping up and firing all at once.
+          x: -1000,
+          y: newLaserY,
+          hit: false,
+          scored: false,
+          passed: false,
+          nextY: this.generateRandomLaserY(score), // Pre-calculate next position
+          width: this.getNextLaserWidth(), // Use method for new lasers
+        });
       }
     }
 
-    // Adjust laser array
-    while (this.lasers.length < this.numLasers) {
-      const currentEnemyWidth = BALL_SIZE + (this.enemyGrowthLevel * ENEMY_WIDTH_GROWTH_PER_CYCLE);
-      const newLaserY = this.generateRandomLaserY(score);
-      // When a new laser is added, ensure its initial width follows the alternating pattern
-      this.lasers.push({
-        x: this.enemyX + currentEnemyWidth / 2, // Spawn from enemy center X
-        y: newLaserY,
-        hit: false,
-        scored: false,
-        passed: false,
-        nextY: this.generateRandomLaserY(score), // Pre-calculate next position
-        width: this.getNextLaserWidth(), // Use new method for new lasers
-      });
-    }
+    // Remove lasers if count decreased
     while (this.lasers.length > this.numLasers) {
       this.lasers.pop();
     }
@@ -213,50 +221,11 @@ export class LaserPhysics {
   }
 
   /**
-   * Calculate current laser speed based on score
-   * Level 1 (0-99): Speed increases by LASER_SPEED_INCREMENT every SCORE_PER_SPEED_INCREMENT points
-   * Level 2 (100+): Speed stays constant at the value when entering Level 2
-   * Between scores 25-50, gradual reduction is applied
+   * Calculate current laser speed - now returns constant speed
+   * Simplified: No more speed increments or resets
    */
   private getCurrentSpeed(score: number): number {
-    let speed: number;
-
-    // Level 2: Speed is constant (no incremental increases)
-    if (score >= 100) {
-      // If we've reset speed (at score 50 or 75), use that base speed
-      if (this.speedResetScore >= 0 && this.speedResetScore >= 50) {
-        speed = this.baseSpeed; // Just use base speed, no increments
-      } else {
-        // Calculate what the speed was at score 99 and keep it constant
-        const speedIncrements = Math.floor(99 / SCORE_PER_SPEED_INCREMENT);
-        speed = this.baseSpeed + (LASER_SPEED_INCREMENT * speedIncrements);
-      }
-    }
-    // Level 1: Normal incremental speed
-    else if (this.speedResetScore >= 0 && score > this.speedResetScore) {
-      // Calculate how many increments have happened since the reset
-      const incrementsSinceReset = Math.floor((score - this.speedResetScore) / SCORE_PER_SPEED_INCREMENT);
-      speed = this.baseSpeed + (LASER_SPEED_INCREMENT * incrementsSinceReset);
-    } else {
-      // Normal incremental speed calculation before reset
-      const speedIncrements = Math.floor(score / SCORE_PER_SPEED_INCREMENT);
-      speed = this.baseSpeed + (LASER_SPEED_INCREMENT * speedIncrements);
-
-      // Apply gradual reduction between scores 25-50
-      if (score > 25 && score < 50) {
-        const pointsPast25 = score - 25;
-        const reduction = pointsPast25 * LASER_SPEED_GRADUAL_REDUCTION;
-        speed -= reduction;
-      }
-    }
-
-    // If transitioning, interpolate between start and target speed
-    if (this.isTransitioningSpeed) {
-      const easedProgress = this.easeOutCubic(this.transitionProgress);
-      speed = this.transitionStartSpeed + (this.transitionTargetSpeed - this.transitionStartSpeed) * easedProgress;
-    }
-
-    return speed;
+    return this.baseSpeed; // Constant speed for all scores
   }
 
   /**
@@ -269,7 +238,10 @@ export class LaserPhysics {
     playerHasJumped: boolean
   ): { scoreChange: number; wasHit: boolean; enemyHitCount: number } {
     this.currentScore = score; // Update score for chaos calculation
-
+    
+    // Sync laser count at the start of the frame to prevent desync issues
+    this.updateLaserCount(score);
+    
     // Update speed transition progress
     if (this.isTransitioningSpeed) {
       // Increment progress (assuming ~16.67ms per frame at 60 FPS)
@@ -280,45 +252,84 @@ export class LaserPhysics {
       }
     }
 
+    // Calculate the correct delay for evenly spaced lasers
+    const laserSpeed = this.getCurrentSpeed(score);
+    let fireDelay = 0;
+    if (laserSpeed > 0 && this.numLasers > 0) {
+      if (this.numLasers === 1) {
+        // For a single laser, use a fixed, responsive delay instead of waiting for it to cross the screen.
+        fireDelay = 300; // A 300ms delay feels quick and engaging.
+      } else {
+        // For multiple lasers, calculate delay for even spacing.
+        const distanceBetweenLasers = this.screenWidth / this.numLasers;
+        // Convert from frames (pixels/frame) to milliseconds.
+        fireDelay = (distanceBetweenLasers / laserSpeed) * (1000 / 60); // Assuming 60 FPS
+      }
+    }
+
     const currentSpeed = this.getCurrentSpeed(score);
     let scoreChange = 0;
     let wasHit = false;
     let enemyHitCount = 0; // Track enemy hits on player
     let hitRegisteredThisFrame = false; // Only count one hit per frame
 
-    this.lasers.forEach((laser) => {
+    // Get the current time once per frame for all timer calculations
+    const now = Date.now();
+
+    // --- New Firing Logic: A dedicated spawner ---
+    // This timer attempts to fire a laser at a regular interval.
+    if (now - this.lastLaserFireTime > fireDelay) {
+      // Find an inactive laser to fire. An "inactive" laser is one that is off-screen.
+      const inactiveLaser = this.lasers.find(l => l.x < -LASER_WIDTH);
+
+      if (inactiveLaser) {
+        this.lastLaserFireTime = now; // Reset the timer only when a laser is successfully fired
+
+        // Activate the laser from the enemy's current position
+        const currentEnemyHeight = BALL_SIZE + (this.enemyGrowthLevel * ENEMY_HEIGHT_GROWTH_PER_CYCLE);
+        inactiveLaser.x = this.getInitialLaserX();
+        inactiveLaser.y = this.enemyY + currentEnemyHeight / 2;
+        inactiveLaser.hit = false;
+        inactiveLaser.scored = false;
+        inactiveLaser.passed = false;
+        inactiveLaser.width = this.getNextLaserWidth();
+
+        // Set up the enemy's movement to the next random position
+        const nextY = this.generateRandomLaserY(this.currentScore);
+        inactiveLaser.nextY = nextY;
+        this.pendingTargetY = nextY;
+        this.movementDelayTimer = ENEMY_MOVEMENT_DELAY;
+      }
+    }
+    // --- End of New Firing Logic ---
+
+
+    this.lasers.forEach((laser, laserIndex) => {
       // Move laser
       laser.x -= currentSpeed;
 
-      // Check if player passed without jumping (penalty)
+      // Check if laser passed under player (scoring or penalty)
       if (!laser.hit && !laser.passed && playerPosition.x > laser.x + LASER_WIDTH) {
         laser.passed = true;
-        if (!playerHasJumped) {
-          scoreChange -= 1;
+        laser.scored = true; // Mark as scored regardless (to prevent double scoring below)
+        if (playerHasJumped) {
+          // Player jumped over laser successfully - reward!
+          scoreChange += 1;
+          // If shooting is unlocked, count the jump for the wide laser mechanic
+          if (this.currentScore >= WIDE_LASER_UNLOCK_SCORE) {
+            this.jumpsSinceUnlock++;
+          }
         }
+        // Note: we removed the penalty for not jumping, per user request
       }
 
       // Respawn laser when off screen
       const laserWidth = laser.width || LASER_WIDTH;
-      if (laser.x + laserWidth < 0) {
-        const currentEnemyWidth = BALL_SIZE + (this.enemyGrowthLevel * ENEMY_WIDTH_GROWTH_PER_CYCLE);
-        const currentEnemyHeight = BALL_SIZE + (this.enemyGrowthLevel * ENEMY_HEIGHT_GROWTH_PER_CYCLE);
-        // Spawn laser from enemy's current center position
-        laser.x = this.enemyX + currentEnemyWidth / 2;
-        laser.y = this.enemyY + currentEnemyHeight / 2; // Spawn from enemy's current center Y
-        laser.hit = false;
-        laser.scored = false;
-        laser.passed = false;
-        // Use the new method for respawned lasers to maintain the alternating pattern
-        laser.width = this.getNextLaserWidth();
-        // Calculate the NEXT spawn position with chaos based on current score
-        laser.nextY = this.generateRandomLaserY(this.currentScore);
-
-        // Set up delayed movement to next position
-        this.pendingTargetY = laser.nextY;
-        this.movementDelayTimer = ENEMY_MOVEMENT_DELAY;
+      if (laser.x + laserWidth < -LASER_WIDTH) { // Laser is well off-screen
+        // This laser is now considered "inactive" and available for the spawner to use.
+        // We don't need to do anything else here; the spawner will handle it.
+        // The check `l.x < -LASER_WIDTH` in the spawner finds this laser.
       }
-
       // Check collision with player (use laser's custom width if set)
       const currentLaserWidth = laser.width || LASER_WIDTH;
       if (
@@ -332,36 +343,19 @@ export class LaserPhysics {
         wasHit = true;
         // Only count one hit per frame, even if multiple lasers hit
         if (!hitRegisteredThisFrame) {
-          enemyHitCount++; // Increment enemy hit counter
+          // If it's a wide laser, it counts for more hits
+          const hitValue = laser.width === WIDE_LASER_WIDTH ? WIDE_LASER_HIT_VALUE : 1;
+          enemyHitCount += hitValue;
           hitRegisteredThisFrame = true;
         }
 
-        // Make laser disappear (respawn) when it hits the player
-        const currentEnemyWidth = BALL_SIZE + (this.enemyGrowthLevel * ENEMY_WIDTH_GROWTH_PER_CYCLE);
-        const currentEnemyHeight = BALL_SIZE + (this.enemyGrowthLevel * ENEMY_HEIGHT_GROWTH_PER_CYCLE);
-        laser.x = this.enemyX + currentEnemyWidth / 2;
-        laser.y = this.enemyY + currentEnemyHeight / 2;
-        laser.hit = false;
-        laser.scored = false;
-        laser.passed = false;
-        laser.width = this.getNextLaserWidth();
-        laser.nextY = this.generateRandomLaserY(this.currentScore);
-
-        // Set up delayed movement to next position
-        this.pendingTargetY = laser.nextY;
-        this.movementDelayTimer = ENEMY_MOVEMENT_DELAY;
+        // When a laser hits the player, immediately make it inactive by moving it off-screen.
+        // The spawner will be able to reuse it on its next cycle.
+        laser.x = -1000; // Move far off-screen to mark as inactive.
       }
 
-      // Check if player successfully jumped over laser (scoring)
-      if (
-        !laser.scored &&
-        !laser.hit &&
-        playerHasJumped &&
-        playerPosition.x > laser.x + currentLaserWidth
-      ) {
-        laser.scored = true;
-        scoreChange += 1;
-      }
+      // Scoring is now handled in the "passed" check above (lines 293-302)
+      // This eliminates the duplicate scoring issue
     });
 
     // Handle movement delay timer
@@ -471,7 +465,8 @@ export class LaserPhysics {
     this.baseSpeed = BASE_LASER_SPEED;
     this.enemyY = this.centerY;
     this.targetEnemyY = this.centerY;
-    this.laserSpawnCounter = 0; // Reset counter on game restart
+    this.lastWideLaserJumpCount = 0; // Reset wide laser tracker
+    this.jumpsSinceUnlock = 0; // Reset counter on game restart
     this.enemyGrowthLevel = 0; // Reset growth on game restart
     this.initializeLasers();
   }

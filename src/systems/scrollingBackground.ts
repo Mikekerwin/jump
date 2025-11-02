@@ -3,7 +3,7 @@
  * Handles smooth horizontal scrolling of repeating background image
  */
 
-import { BACKGROUND_SCROLL_SPEED, BACKGROUND_HEIGHT_SCALE } from '../config/gameConfig';
+import { BACKGROUND_SCROLL_SPEED } from '../config/gameConfig';
 
 export class ScrollingBackground {
   private offsetX: number = 0;
@@ -35,11 +35,6 @@ export class ScrollingBackground {
 
     // Move background to the left
     this.offsetX -= BACKGROUND_SCROLL_SPEED;
-
-    // Reset offset when it reaches the image width for seamless loop
-    if (Math.abs(this.offsetX) >= this.imageWidth) {
-      this.offsetX = 0;
-    }
   }
 
   /**
@@ -48,26 +43,18 @@ export class ScrollingBackground {
   render(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
     if (!this.imageLoaded || !this.image) return;
 
-    // Calculate scale to fit height with additional height scale factor
-    const scale = (canvasHeight * BACKGROUND_HEIGHT_SCALE) / this.imageHeight;
+    // Calculate scale to fit height and maintain aspect ratio
+    const scale = canvasHeight / this.imageHeight;
     const scaledWidth = this.imageWidth * scale;
-    const scaledHeight = this.imageHeight * scale;
+    const scaledHeight = canvasHeight;
 
-    // Anchor to bottom of screen (extra height grows upwards)
-    const yOffset = canvasHeight - scaledHeight;
+    // Use the modulo operator to wrap the offset, creating a seamless loop.
+    const wrappedOffsetX = this.offsetX % scaledWidth;
 
-    // Draw multiple copies to fill the screen and create seamless scrolling
-    const numCopies = Math.ceil(canvasWidth / scaledWidth) + 2;
-
-    for (let i = 0; i < numCopies; i++) {
-      const x = this.offsetX + (i * scaledWidth);
-      ctx.drawImage(
-        this.image,
-        x,
-        yOffset,
-        scaledWidth,
-        scaledHeight
-      );
+    // Draw multiple copies to fill the screen and create seamless scrolling.
+    // Start from the wrapped offset and continue until the entire canvas width is covered.
+    for (let x = wrappedOffsetX; x < canvasWidth; x += scaledWidth) {
+      ctx.drawImage(this.image, x, 0, scaledWidth, scaledHeight);
     }
   }
 

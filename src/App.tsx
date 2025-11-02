@@ -22,6 +22,7 @@ const App: React.FC = () => {
     score,
     gameOver,
     hitCount,
+    enemyHits,
     enemyWasHit,
     playerState,
     lasers,
@@ -31,7 +32,6 @@ const App: React.FC = () => {
     playerProjectiles,
     energy,
     canShoot,
-    enemyHits,
     playerOuts,
     enemyOuts,
     shootGameOver,
@@ -215,8 +215,8 @@ const App: React.FC = () => {
                 zIndex: 100,
               }}
             >
-              <div>Enemy Hit: {enemyHits} / 20</div>
-              <div style={{ marginTop: '5px' }}>Enemy Outs: {enemyOuts} / 10</div>
+              <div>Hit: {enemyHits} / 20</div>
+              <div style={{ marginTop: '5px' }}>Outs: {enemyOuts} / 10</div>
             </div>
           )}
 
