@@ -52,9 +52,9 @@ export class ScrollingBackground {
     const wrappedOffsetX = this.offsetX % scaledWidth;
 
     // Draw multiple copies to fill the screen and create seamless scrolling.
-    // Start from the wrapped offset and continue until the entire canvas width is covered.
-    for (let x = wrappedOffsetX; x < canvasWidth; x += scaledWidth) {
-      ctx.drawImage(this.image, x, 0, scaledWidth, scaledHeight);
+    // Add 1px overlap to prevent black lines from rounding errors
+    for (let x = wrappedOffsetX; x < canvasWidth + 1; x += scaledWidth) {
+      ctx.drawImage(this.image, x, 0, scaledWidth + 1, scaledHeight);
     }
   }
 
