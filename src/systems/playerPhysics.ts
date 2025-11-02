@@ -20,6 +20,8 @@ export class PlayerPhysics {
   private initialX: number;
   private centerY: number;
   private jumpCount: number = 0; // Track number of jumps (0, 1, or 2 for double jump)
+  private horizontalRangeLeft: number = PLAYER_HORIZONTAL_RANGE_LEFT;
+  private horizontalRangeRight: number = PLAYER_HORIZONTAL_RANGE_RIGHT;
 
   constructor(initialX: number, initialY: number, centerY: number) {
     this.centerY = centerY;
@@ -35,6 +37,14 @@ export class PlayerPhysics {
       isHolding: false,
       holdStartTime: 0,
     };
+  }
+
+  /**
+   * Update horizontal ranges (for responsive sizing)
+   */
+  updateHorizontalRanges(left: number, right: number): void {
+    this.horizontalRangeLeft = left;
+    this.horizontalRangeRight = right;
   }
 
   /**
@@ -89,8 +99,8 @@ export class PlayerPhysics {
    */
   setMousePosition(clientX: number, screenWidth: number): void {
     const mouseRatio = clientX / screenWidth; // Mouse position as a ratio from 0.0 to 1.0
-    const minX = this.initialX - PLAYER_HORIZONTAL_RANGE_LEFT;
-    const maxX = this.initialX + PLAYER_HORIZONTAL_RANGE_RIGHT;
+    const minX = this.initialX - this.horizontalRangeLeft;
+    const maxX = this.initialX + this.horizontalRangeRight;
     this.playerState.position.x = minX + (mouseRatio * (maxX - minX));
   }
 

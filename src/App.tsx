@@ -224,7 +224,12 @@ const App: React.FC = () => {
           {!gameOver && <EnergyBar energy={energy} />}
 
           {/* Player Ball */}
-          <Player playerState={playerState} isHit={wasHit} growthLevel={playerGrowthLevel} />
+          <Player
+            playerState={playerState}
+            isHit={wasHit}
+            growthLevel={playerGrowthLevel}
+            ballSize={dimensions.ballSize}
+          />
 
           {/* Enemy Launcher */}
           <Enemy
@@ -235,6 +240,7 @@ const App: React.FC = () => {
             growthLevel={enemyGrowthLevel}
             isHit={enemyWasHit}
             onShoot={score >= 100 ? handleShoot : undefined}
+            ballSize={dimensions.ballSize}
           />
 
           {/* Lasers */}

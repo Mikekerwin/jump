@@ -5,21 +5,22 @@
 
 import React from 'react';
 import { PlayerState } from '../types/game';
-import { BALL_SIZE, BALL_GROWTH_TRANSITION_DURATION } from '../config/gameConfig';
+import { BALL_GROWTH_TRANSITION_DURATION } from '../config/gameConfig';
 
 interface PlayerProps {
   playerState: PlayerState;
   isHit?: boolean;
   growthLevel?: number; // 0-4 for size growth (each level adds 20px)
+  ballSize?: number; // Responsive ball size (defaults to 80)
 }
 
 export const Player = React.forwardRef<HTMLDivElement, PlayerProps>(
-  ({ playerState, isHit, growthLevel = 0 }, ref) => {
+  ({ playerState, isHit, growthLevel = 0, ballSize = 80 }, ref) => {
     const { position, scaleX, scaleY } = playerState;
 
     // Calculate actual size based on growth level
     const growthAmount = growthLevel * 20; // 0, 20, 40, 60, 80
-    const actualSize = BALL_SIZE + growthAmount; // 80, 100, 120, 140, 160
+    const actualSize = ballSize + growthAmount; // Use responsive ball size + growth
 
     // Offset position to keep ball centered as it grows
     const centeredLeft = position.x - (growthAmount / 2);

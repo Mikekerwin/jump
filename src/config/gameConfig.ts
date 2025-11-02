@@ -3,8 +3,47 @@
  * All game balance, physics, and layout parameters
  */
 
+// 📐 RESPONSIVE SCALING CONFIGURATION
+// Function to calculate responsive ball size based on viewport
+export const calculateResponsiveBallSize = (width: number, height: number): number => {
+  const aspectRatio = width / height;
+
+  // Base size as percentage of viewport height
+  let sizePercentage = 0.11; // 11% of viewport height for normal screens
+
+  // Adjust for different aspect ratios
+  if (aspectRatio > 2.5) {
+    // Ultra-wide landscape (e.g., phone landscape)
+    sizePercentage = 0.16; // Larger percentage but smaller actual size
+  } else if (aspectRatio > 2.0) {
+    // Wide landscape (e.g., tablet landscape)
+    sizePercentage = 0.13;
+  } else if (aspectRatio < 1.0) {
+    // Portrait mode
+    sizePercentage = 0.08;
+  }
+
+  const calculatedSize = height * sizePercentage;
+
+  // Clamp between min and max sizes
+  return Math.max(40, Math.min(100, calculatedSize));
+};
+
+// Function to calculate responsive horizontal ranges
+export const calculateHorizontalRanges = (width: number) => {
+  // Base ranges as percentage of screen width
+  const leftRangePercent = 0.08; // 8% of width
+  const rightRangePercent = 0.15; // 15% of width
+
+  return {
+    left: Math.max(50, Math.min(150, width * leftRangePercent)),
+    right: Math.max(100, Math.min(250, width * rightRangePercent))
+  };
+};
+
 // 🟦 PLAYER BALL CONFIGURATION
-export const BALL_SIZE = 80;
+// These are now base values - actual values calculated responsively
+export const BALL_SIZE = 80; // Base size for reference
 export const HITBOX_SIZE = BALL_SIZE + 20;
 export const PLAYER_HORIZONTAL_RANGE_LEFT = 100; // Pixels player can move left from center
 export const PLAYER_HORIZONTAL_RANGE_RIGHT = 200; // Pixels player can move right from center
@@ -26,7 +65,20 @@ export const BOOST = 15.35; // Initial jump boost
 export const HOLD_BOOST = 0.16; // Continuous boost while holding
 export const MAX_HOLD_TIME = 2200; // Maximum hold duration in ms
 
+// Function to calculate responsive laser dimensions
+export const calculateResponsiveLaserSize = (ballSize: number) => {
+  // Laser width scales proportionally to ball size
+  const width = (ballSize / 80) * 25; // Scale from base 25px at 80px ball
+  const height = 2; // Keep height constant for visibility
+
+  return {
+    width: Math.max(15, Math.min(35, width)),
+    height
+  };
+};
+
 // 🔴 LASER CONFIGURATION
+// These are now base values - actual values calculated responsively
 export const LASER_WIDTH = 25;
 export const LASER_HEIGHT = 2;
 export const BASE_LASER_SPEED = 5.5; // Constant laser speed (no more incrementing)

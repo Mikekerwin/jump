@@ -12,8 +12,6 @@ import { BackgroundStars } from '../systems/backgroundStars';
 import { ScrollingBackground } from '../systems/scrollingBackground';
 import { PlayerState, LaserState, PlayerProjectile } from '../types/game';
 import {
-  BALL_SIZE,
-  HITBOX_SIZE,
   PLAYER_X_POSITION,
   FLOOR_Y_POSITION,
   ENEMY_X_POSITION,
@@ -27,6 +25,9 @@ import {
   MAX_OUTS,
   HITS_PER_OUT,
   BACKGROUND_IMAGE_PATH,
+  calculateResponsiveBallSize,
+  calculateHorizontalRanges,
+  calculateResponsiveLaserSize,
 } from '../config/gameConfig';
 
 // Shooting speed configuration (in milliseconds)
@@ -82,13 +83,31 @@ export const useGameLoop = () => {
   const scoreRef = useRef(0);
   const gameOverRef = useRef(false); // Immediate game over flag
 
-  const dimensionsRef = useRef({
-    width: window.innerWidth,
-    height: window.innerHeight,
-    centerY: window.innerHeight * FLOOR_Y_POSITION - HITBOX_SIZE / 2,
-    playerStartX: window.innerWidth * PLAYER_X_POSITION - BALL_SIZE / 2,
-    enemyX: window.innerWidth * ENEMY_X_POSITION - BALL_SIZE,
-  });
+  // Calculate responsive dimensions
+  const calculateDimensions = () => {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const responsiveBallSize = calculateResponsiveBallSize(width, height);
+    const responsiveHitboxSize = responsiveBallSize + 20;
+    const horizontalRanges = calculateHorizontalRanges(width);
+    const laserSize = calculateResponsiveLaserSize(responsiveBallSize);
+
+    return {
+      width,
+      height,
+      ballSize: responsiveBallSize,
+      hitboxSize: responsiveHitboxSize,
+      centerY: height * FLOOR_Y_POSITION - responsiveHitboxSize / 2,
+      playerStartX: width * PLAYER_X_POSITION - responsiveBallSize / 2,
+      enemyX: width * ENEMY_X_POSITION - responsiveBallSize,
+      horizontalRangeLeft: horizontalRanges.left,
+      horizontalRangeRight: horizontalRanges.right,
+      laserWidth: laserSize.width,
+      laserHeight: laserSize.height,
+    };
+  };
+
+  const dimensionsRef = useRef(calculateDimensions());
 
   // Initialize
   useEffect(() => {
@@ -99,12 +118,22 @@ export const useGameLoop = () => {
       dims.centerY,
       dims.centerY
     );
+    playerPhysicsRef.current.updateHorizontalRanges(dims.horizontalRangeLeft, dims.horizontalRangeRight);
 
     laserPhysicsRef.current = new LaserPhysics(
       dims.width,
       dims.height,
       dims.centerY,
       dims.enemyX
+    );
+    laserPhysicsRef.current.updateDimensions(
+      dims.width,
+      dims.height,
+      dims.centerY,
+      dims.enemyX,
+      dims.ballSize,
+      dims.laserWidth,
+      dims.laserHeight
     );
 
     audioManagerRef.current = new AudioManager();
@@ -147,15 +176,21 @@ export const useGameLoop = () => {
   // Handle resize
   useEffect(() => {
     const handleResize = () => {
+      // Recalculate all responsive dimensions
+      dimensionsRef.current = calculateDimensions();
       const dims = dimensionsRef.current;
-      dims.width = window.innerWidth;
-      dims.height = window.innerHeight;
-      dims.centerY = window.innerHeight * FLOOR_Y_POSITION - HITBOX_SIZE / 2;
-      dims.playerStartX = window.innerWidth * PLAYER_X_POSITION - BALL_SIZE / 2;
-      dims.enemyX = window.innerWidth * ENEMY_X_POSITION - BALL_SIZE;
 
       playerPhysicsRef.current?.updateCenterY(dims.centerY);
-      laserPhysicsRef.current?.updateDimensions(dims.width, dims.height, dims.centerY, dims.enemyX);
+      playerPhysicsRef.current?.updateHorizontalRanges(dims.horizontalRangeLeft, dims.horizontalRangeRight);
+      laserPhysicsRef.current?.updateDimensions(
+        dims.width,
+        dims.height,
+        dims.centerY,
+        dims.enemyX,
+        dims.ballSize,
+        dims.laserWidth,
+        dims.laserHeight
+      );
       backgroundStarsRef.current?.updateDimensions(dims.width, dims.height);
       scrollingBackgroundRef.current?.updateDimensions(dims.width, dims.height);
     };
@@ -289,8 +324,8 @@ export const useGameLoop = () => {
 
               const newX = projectile.x + PLAYER_PROJECTILE_SPEED;
               const dims = dimensionsRef.current;
-              const currentEnemyWidth = BALL_SIZE + (enemyGrowthLevelRef.current * ENEMY_WIDTH_GROWTH_PER_CYCLE);
-              const currentEnemyHeight = BALL_SIZE + (enemyGrowthLevelRef.current * ENEMY_HEIGHT_GROWTH_PER_CYCLE);
+              const currentEnemyWidth = dims.ballSize + (enemyGrowthLevelRef.current * ENEMY_WIDTH_GROWTH_PER_CYCLE);
+              const currentEnemyHeight = dims.ballSize + (enemyGrowthLevelRef.current * ENEMY_HEIGHT_GROWTH_PER_CYCLE);
               const enemyCurrentY = laserPhysicsRef.current?.getEnemyY() || 0;
 
               const hitEnemy =
@@ -436,9 +471,10 @@ export const useGameLoop = () => {
     setEnergy(prev => Math.max(0, prev - 0.5));
     lastShootTimeRef.current = now; // Update last shoot time
 
+    const dims = dimensionsRef.current;
     const newProjectile: PlayerProjectile = {
-      x: currentPlayerState.position.x + BALL_SIZE / 2,
-      y: currentPlayerState.position.y + BALL_SIZE / 2 - PLAYER_PROJECTILE_HEIGHT / 2,
+      x: currentPlayerState.position.x + dims.ballSize / 2,
+      y: currentPlayerState.position.y + dims.ballSize / 2 - PLAYER_PROJECTILE_HEIGHT / 2,
       active: true,
     };
 

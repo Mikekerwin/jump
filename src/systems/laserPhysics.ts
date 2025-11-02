@@ -63,6 +63,10 @@ export class LaserPhysics {
   private minLaserY: number;
   private enemyX: number;
   private screenWidth: number;
+  // Responsive dimensions
+  private ballSize: number = BALL_SIZE;
+  private laserWidth: number = LASER_WIDTH;
+  private laserHeight: number = LASER_HEIGHT;
 
   constructor(screenWidth: number, screenHeight: number, centerY: number, enemyX: number) {
     this.lastLaserFireTime = Date.now();
@@ -108,7 +112,7 @@ export class LaserPhysics {
       this.lastWideLaserJumpCount = this.jumpsSinceUnlock; // Record that we've spawned for this milestone
       return WIDE_LASER_WIDTH;
     }
-    return LASER_WIDTH;
+    return this.laserWidth;
   }
 
   /**
@@ -139,7 +143,7 @@ export class LaserPhysics {
    * All lasers spawn at enemy position with small stagger for spacing
    */
   private getInitialLaserX(): number {
-    const currentEnemyWidth = BALL_SIZE + (this.enemyGrowthLevel * ENEMY_WIDTH_GROWTH_PER_CYCLE);
+    const currentEnemyWidth = this.ballSize + (this.enemyGrowthLevel * ENEMY_WIDTH_GROWTH_PER_CYCLE);
     const enemySpawnX = this.enemyX + currentEnemyWidth / 2;
     return enemySpawnX;
     /*
@@ -154,7 +158,7 @@ export class LaserPhysics {
    * Initialize lasers at starting positions
    */
   private initializeLasers(): void {
-    const currentEnemyWidth = BALL_SIZE + (this.enemyGrowthLevel * ENEMY_WIDTH_GROWTH_PER_CYCLE);
+    const currentEnemyWidth = this.ballSize + (this.enemyGrowthLevel * ENEMY_WIDTH_GROWTH_PER_CYCLE);
     const firstLaserY = this.centerY;
     const nextLaserY = this.generateRandomLaserY(0);
 
@@ -280,13 +284,13 @@ export class LaserPhysics {
     // This timer attempts to fire a laser at a regular interval.
     if (now - this.lastLaserFireTime > fireDelay) {
       // Find an inactive laser to fire. An "inactive" laser is one that is off-screen.
-      const inactiveLaser = this.lasers.find(l => l.x < -LASER_WIDTH);
+      const inactiveLaser = this.lasers.find(l => l.x < -this.laserWidth);
 
       if (inactiveLaser) {
         this.lastLaserFireTime = now; // Reset the timer only when a laser is successfully fired
 
         // Activate the laser from the enemy's current position
-        const currentEnemyHeight = BALL_SIZE + (this.enemyGrowthLevel * ENEMY_HEIGHT_GROWTH_PER_CYCLE);
+        const currentEnemyHeight = this.ballSize + (this.enemyGrowthLevel * ENEMY_HEIGHT_GROWTH_PER_CYCLE);
         inactiveLaser.x = this.getInitialLaserX();
         inactiveLaser.y = this.enemyY + currentEnemyHeight / 2;
         inactiveLaser.hit = false;
@@ -309,7 +313,7 @@ export class LaserPhysics {
       laser.x -= currentSpeed;
 
       // Check if laser passed under player (scoring or penalty)
-      if (!laser.hit && !laser.passed && playerPosition.x > laser.x + LASER_WIDTH) {
+      if (!laser.hit && !laser.passed && playerPosition.x > laser.x + this.laserWidth) {
         laser.passed = true;
         laser.scored = true; // Mark as scored regardless (to prevent double scoring below)
         if (playerHasJumped) {
@@ -324,20 +328,20 @@ export class LaserPhysics {
       }
 
       // Respawn laser when off screen
-      const laserWidth = laser.width || LASER_WIDTH;
-      if (laser.x + laserWidth < -LASER_WIDTH) { // Laser is well off-screen
+      const laserWidth = laser.width || this.laserWidth;
+      if (laser.x + laserWidth < -this.laserWidth) { // Laser is well off-screen
         // This laser is now considered "inactive" and available for the spawner to use.
         // We don't need to do anything else here; the spawner will handle it.
-        // The check `l.x < -LASER_WIDTH` in the spawner finds this laser.
+        // The check `l.x < -this.laserWidth` in the spawner finds this laser.
       }
       // Check collision with player (use laser's custom width if set)
-      const currentLaserWidth = laser.width || LASER_WIDTH;
+      const currentLaserWidth = laser.width || this.laserWidth;
       if (
         !laser.hit &&
-        playerPosition.x + BALL_SIZE > laser.x &&
+        playerPosition.x + this.ballSize > laser.x &&
         playerPosition.x < laser.x + currentLaserWidth &&
-        playerPosition.y + BALL_SIZE > laser.y && // Player bottom vs laser top
-        playerPosition.y < laser.y + LASER_HEIGHT // Player top vs laser bottom
+        playerPosition.y + this.ballSize > laser.y && // Player bottom vs laser top
+        playerPosition.y < laser.y + this.laserHeight // Player top vs laser bottom
       ) {
         laser.hit = true;
         wasHit = true;
@@ -474,9 +478,12 @@ export class LaserPhysics {
   /**
    * Update dimensions (for window resize)
    */
-  updateDimensions(screenWidth: number, screenHeight: number, centerY: number, enemyX: number): void {
+  updateDimensions(screenWidth: number, screenHeight: number, centerY: number, enemyX: number, ballSize?: number, laserWidth?: number, laserHeight?: number): void {
     this.centerY = centerY;
     this.minLaserY = screenHeight * 0.2; // Allow enemy to go up to 20% from top (80% of screen height)
     this.enemyX = enemyX;
+    if (ballSize !== undefined) this.ballSize = ballSize;
+    if (laserWidth !== undefined) this.laserWidth = laserWidth;
+    if (laserHeight !== undefined) this.laserHeight = laserHeight;
   }
 }
