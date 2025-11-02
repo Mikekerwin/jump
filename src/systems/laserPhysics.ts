@@ -21,10 +21,7 @@ import {
   WIDE_LASER_UNLOCK_SCORE,
   WIDE_LASER_WIDTH,
   WIDE_LASER_HIT_VALUE,
-} from '../config/gameConfig';
-import {
-  ENEMY_WIDTH_GROWTH_PER_CYCLE,
-  ENEMY_HEIGHT_GROWTH_PER_CYCLE,
+  GROWTH_SCALE_PER_LEVEL,
 } from '../config/gameConfig';
 
 export class LaserPhysics {
@@ -130,7 +127,9 @@ export class LaserPhysics {
    * All lasers spawn at enemy position with small stagger for spacing
    */
   private getInitialLaserX(): number {
-    const currentEnemyWidth = this.ballSize + (this.enemyGrowthLevel * ENEMY_WIDTH_GROWTH_PER_CYCLE);
+    // Calculate enemy size with new growth scale system
+    const growthScale = 1 + (this.enemyGrowthLevel * GROWTH_SCALE_PER_LEVEL);
+    const currentEnemyWidth = this.ballSize * growthScale;
     const enemySpawnX = this.enemyX + currentEnemyWidth / 2;
     return enemySpawnX;
     /*
@@ -266,7 +265,8 @@ export class LaserPhysics {
         this.lastLaserFireTime = now; // Reset the timer only when a laser is successfully fired
 
         // Activate the laser from the enemy's current position
-        const currentEnemyHeight = this.ballSize + (this.enemyGrowthLevel * ENEMY_HEIGHT_GROWTH_PER_CYCLE);
+        const growthScale = 1 + (this.enemyGrowthLevel * GROWTH_SCALE_PER_LEVEL);
+        const currentEnemyHeight = this.ballSize * growthScale;
         inactiveLaser.x = this.getInitialLaserX();
         inactiveLaser.y = this.enemyY + currentEnemyHeight / 2;
         inactiveLaser.hit = false;
