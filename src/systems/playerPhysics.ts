@@ -22,6 +22,12 @@ export class PlayerPhysics {
   private jumpCount: number = 0; // Track number of jumps (0, 1, or 2 for double jump)
   private horizontalRangeLeft: number = PLAYER_HORIZONTAL_RANGE_LEFT;
   private horizontalRangeRight: number = PLAYER_HORIZONTAL_RANGE_RIGHT;
+  // Responsive physics values
+  private gravity: number = GRAVITY;
+  private boost: number = BOOST;
+  private holdBoost: number = HOLD_BOOST;
+  private energyLoss: number = ENERGY_LOSS;
+  private maxHoldTime: number = MAX_HOLD_TIME;
 
   constructor(initialX: number, initialY: number, centerY: number) {
     this.centerY = centerY;
@@ -48,17 +54,28 @@ export class PlayerPhysics {
   }
 
   /**
+   * Update physics values (for responsive physics)
+   */
+  updatePhysics(gravity: number, boost: number, holdBoost: number, energyLoss: number, maxHoldTime: number): void {
+    this.gravity = gravity;
+    this.boost = boost;
+    this.holdBoost = holdBoost;
+    this.energyLoss = energyLoss;
+    this.maxHoldTime = maxHoldTime;
+  }
+
+  /**
    * Update player physics for one frame
    */
   update(): PlayerState {
     // Apply gravity
-    this.playerState.velocity -= GRAVITY;
+    this.playerState.velocity -= this.gravity;
 
     // Apply hold boost
     if (this.playerState.isHolding) {
       const heldTime = performance.now() - this.playerState.holdStartTime;
-      if (heldTime < MAX_HOLD_TIME) {
-        this.playerState.velocity += HOLD_BOOST;
+      if (heldTime < this.maxHoldTime) {
+        this.playerState.velocity += this.holdBoost;
       } else {
         this.playerState.isHolding = false;
       }
@@ -70,7 +87,7 @@ export class PlayerPhysics {
     // Handle floor collision (bounce)
     if (this.playerState.position.y > this.centerY) {
       this.playerState.position.y = this.centerY;
-      this.playerState.velocity = -this.playerState.velocity * ENERGY_LOSS;
+      this.playerState.velocity = -this.playerState.velocity * this.energyLoss;
       this.playerState.hasJumped = false;
       this.jumpCount = 0; // Reset jump count when touching ground
 
@@ -83,7 +100,7 @@ export class PlayerPhysics {
     // Handle ceiling collision
     if (this.playerState.position.y < 0) {
       this.playerState.position.y = 0;
-      this.playerState.velocity = -this.playerState.velocity * ENERGY_LOSS;
+      this.playerState.velocity = -this.playerState.velocity * this.energyLoss;
     }
 
     // Update fluid scaling based on velocity and position
@@ -113,7 +130,7 @@ export class PlayerPhysics {
     // Allow jump if we haven't used both jumps yet
     if (this.jumpCount < 2) {
       // Second jump is weaker than first jump
-      const jumpPower = this.jumpCount === 0 ? BOOST : BOOST * 0.6;
+      const jumpPower = this.jumpCount === 0 ? this.boost : this.boost * 0.6;
       this.playerState.velocity = jumpPower;
       this.playerState.hasJumped = true;
       this.jumpCount++;
@@ -190,7 +207,7 @@ export class PlayerPhysics {
    * Get bounce volume based on velocity
    */
   getBounceVolume(): number {
-    return Math.min(Math.abs(this.playerState.velocity) / BOOST, 1);
+    return Math.min(Math.abs(this.playerState.velocity) / this.boost, 1);
   }
 
   /**

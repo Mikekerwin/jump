@@ -12,6 +12,7 @@ import { PlayerProjectile } from './components/PlayerProjectile';
 import { GameOver } from './components/GameOver';
 import { ScoreDisplay } from './components/ScoreDisplay';
 import { FullscreenButton } from './components/FullscreenButton';
+import { SoundToggleButton } from './components/SoundToggleButton';
 import { EnergyBar } from './components/EnergyBar';
 
 const App: React.FC = () => {
@@ -40,12 +41,14 @@ const App: React.FC = () => {
     dimensions,
     backgroundStars,
     scrollingBackground,
+    isMuted,
     handleJumpStart,
     handleJumpEnd,
     handleMouseMove,
     testEnergy,
     handleShoot,
     handleRestart,
+    handleToggleSound,
   } = useGameLoop();
 
   /**
@@ -268,6 +271,9 @@ const App: React.FC = () => {
       )}
 
       {gameOver && <GameOver onRestart={handleRestart} shootGameOver={shootGameOver} />}
+
+      {/* Sound Toggle Button */}
+      <SoundToggleButton isMuted={isMuted} onToggle={handleToggleSound} />
 
       {/* Fullscreen Toggle Button */}
       <FullscreenButton />

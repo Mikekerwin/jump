@@ -13,7 +13,6 @@ import { ScrollingBackground } from '../systems/scrollingBackground';
 import { PlayerState, LaserState, PlayerProjectile } from '../types/game';
 import {
   PLAYER_X_POSITION,
-  FLOOR_Y_POSITION,
   ENEMY_X_POSITION,
   SCORE_UPDATE_INTERVAL,
   PLAYER_PROJECTILE_SPEED,
@@ -28,6 +27,8 @@ import {
   calculateResponsiveBallSize,
   calculateHorizontalRanges,
   calculateResponsiveLaserSize,
+  calculateResponsiveFloorPosition,
+  calculateResponsivePhysics,
 } from '../config/gameConfig';
 
 // Shooting speed configuration (in milliseconds)
@@ -72,6 +73,7 @@ export const useGameLoop = () => {
   const [playerOuts, setPlayerOuts] = useState(0); // Track player outs (0-10)
   const [enemyOuts, setEnemyOuts] = useState(0); // Track enemy outs (0-10)
   const [shootGameOver, setShootGameOver] = useState(false); // Special game over when player reaches 10 outs
+  const [isMuted, setIsMuted] = useState(false); // Track sound mute state
 
   // Game systems
   const playerPhysicsRef = useRef<PlayerPhysics | null>(null);
@@ -91,19 +93,22 @@ export const useGameLoop = () => {
     const responsiveHitboxSize = responsiveBallSize + 20;
     const horizontalRanges = calculateHorizontalRanges(width);
     const laserSize = calculateResponsiveLaserSize(responsiveBallSize);
+    const responsiveFloorPosition = calculateResponsiveFloorPosition(width, height);
+    const physics = calculateResponsivePhysics(height);
 
     return {
       width,
       height,
       ballSize: responsiveBallSize,
       hitboxSize: responsiveHitboxSize,
-      centerY: height * FLOOR_Y_POSITION - responsiveHitboxSize / 2,
+      centerY: height * responsiveFloorPosition - responsiveHitboxSize / 2,
       playerStartX: width * PLAYER_X_POSITION - responsiveBallSize / 2,
       enemyX: width * ENEMY_X_POSITION - responsiveBallSize,
       horizontalRangeLeft: horizontalRanges.left,
       horizontalRangeRight: horizontalRanges.right,
       laserWidth: laserSize.width,
       laserHeight: laserSize.height,
+      physics,
     };
   };
 
@@ -119,6 +124,13 @@ export const useGameLoop = () => {
       dims.centerY
     );
     playerPhysicsRef.current.updateHorizontalRanges(dims.horizontalRangeLeft, dims.horizontalRangeRight);
+    playerPhysicsRef.current.updatePhysics(
+      dims.physics.gravity,
+      dims.physics.boost,
+      dims.physics.holdBoost,
+      dims.physics.energyLoss,
+      dims.physics.maxHoldTime
+    );
 
     laserPhysicsRef.current = new LaserPhysics(
       dims.width,
@@ -182,6 +194,13 @@ export const useGameLoop = () => {
 
       playerPhysicsRef.current?.updateCenterY(dims.centerY);
       playerPhysicsRef.current?.updateHorizontalRanges(dims.horizontalRangeLeft, dims.horizontalRangeRight);
+      playerPhysicsRef.current?.updatePhysics(
+        dims.physics.gravity,
+        dims.physics.boost,
+        dims.physics.holdBoost,
+        dims.physics.energyLoss,
+        dims.physics.maxHoldTime
+      );
       laserPhysicsRef.current?.updateDimensions(
         dims.width,
         dims.height,
@@ -526,6 +545,12 @@ export const useGameLoop = () => {
     laserPhysicsRef.current?.setScore(100);
   }, []);
 
+  // Toggle sound mute
+  const handleToggleSound = useCallback(() => {
+    const newMutedState = audioManagerRef.current?.toggleMute();
+    setIsMuted(newMutedState ?? false);
+  }, []);
+
   return {
     score,
     gameOver,
@@ -549,6 +574,7 @@ export const useGameLoop = () => {
     dimensions: dimensionsRef.current,
     backgroundStars: backgroundStarsRef.current,
     scrollingBackground: scrollingBackgroundRef.current,
+    isMuted,
     handleJumpStart,
     handleJumpEnd,
     handleMouseMove,
@@ -556,6 +582,7 @@ export const useGameLoop = () => {
     handleShoot,
     handleRestart,
     handleTestScore,
+    handleToggleSound,
     testEnergy, // Test function to unlock shooting
   };
 };

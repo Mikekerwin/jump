@@ -58,12 +58,29 @@ export const PLAYER_PROJECTILE_HEIGHT = 4;
 export const ENEMY_WIDTH_GROWTH_PER_CYCLE = BALL_SIZE * 0.25;
 export const ENEMY_HEIGHT_GROWTH_PER_CYCLE = BALL_SIZE * 0.25;
 
-// ⚙️ PHYSICS PARAMETERS
+// ⚙️ PHYSICS PARAMETERS (Base values for reference screen height of 800px)
+export const BASE_SCREEN_HEIGHT = 800; // Reference screen height for physics calculations
 export const GRAVITY = 0.42;
 export const ENERGY_LOSS = 0.5; // Bounce energy retention
 export const BOOST = 15.35; // Initial jump boost
 export const HOLD_BOOST = 0.16; // Continuous boost while holding
 export const MAX_HOLD_TIME = 2200; // Maximum hold duration in ms
+
+// Function to calculate responsive physics based on screen height
+// This ensures the player jumps to the same relative height regardless of screen size
+export const calculateResponsivePhysics = (screenHeight: number) => {
+  // Scale factor based on screen height
+  // Smaller screens need weaker gravity/boost to maintain same relative jump height
+  const heightScale = screenHeight / BASE_SCREEN_HEIGHT;
+
+  return {
+    gravity: GRAVITY * heightScale,
+    boost: BOOST * heightScale,
+    holdBoost: HOLD_BOOST * heightScale,
+    energyLoss: ENERGY_LOSS, // Keep bounce retention constant
+    maxHoldTime: MAX_HOLD_TIME, // Keep max hold time constant
+  };
+};
 
 // Function to calculate responsive laser dimensions
 export const calculateResponsiveLaserSize = (ballSize: number) => {
@@ -119,9 +136,34 @@ export const BACKGROUND_HEIGHT_SCALE = 1.4; // Make background 15% taller while 
 export const BACKGROUND_OVERLAY_GRADIENT_START = 'rgba(0, 0, 0, .8)'; // Bottom: more opaque
 export const BACKGROUND_OVERLAY_GRADIENT_END = 'rgba(0, 0, 0, .65)';   // Top: more transparent
 
+// Function to calculate responsive floor position based on viewport
+export const calculateResponsiveFloorPosition = (width: number, height: number): number => {
+  const aspectRatio = width / height;
+
+  // Base position as percentage from top
+  let floorPosition = 0.75; // 75% for normal screens (iPad landscape)
+
+  // Adjust for different aspect ratios
+  if (aspectRatio > 2.5) {
+    // Ultra-wide landscape (e.g., iPhone landscape) - floor needs to be lower to give more vertical space
+    floorPosition = 0.65; // 65% from top = more space above
+  } else if (aspectRatio > 2.0) {
+    // Wide landscape (e.g., tablet landscape)
+    floorPosition = 0.70; // 70% from top
+  } else if (aspectRatio < 1.0) {
+    // Portrait mode - floor needs to be higher to keep gameplay in reachable range
+    floorPosition = 0.55; // 55% from top = less space above
+  } else if (aspectRatio < 1.5) {
+    // Square-ish screens
+    floorPosition = 0.68;
+  }
+
+  return floorPosition;
+};
+
 // 🧭 LAYOUT CONFIGURATION
 export const PLAYER_X_POSITION = 0.25; // 25% from left
-export const FLOOR_Y_POSITION = 0.75;  // 75% from top
+export const FLOOR_Y_POSITION = 0.75;  // 75% from top (base value, overridden by responsive calculation)
 export const ENEMY_X_POSITION = 0.9;   // 90% from left
 
 // 🔊 AUDIO CONFIGURATION

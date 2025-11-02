@@ -18,6 +18,7 @@ export class AudioManager {
   private lastBounceTime: number = 0;
   private isUnlocked: boolean = false;
   private hasPlayedJumpSound: boolean = false; // Track if jump sound played this press
+  private isMuted: boolean = false; // Track mute state
 
   /**
    * Initialize audio system (must be called on user interaction)
@@ -177,6 +178,45 @@ export class AudioManager {
    */
   isAudioUnlocked(): boolean {
     return this.isUnlocked;
+  }
+
+  /**
+   * Mute all sounds
+   */
+  mute(): void {
+    this.isMuted = true;
+    if (this.bounceSound) this.bounceSound.volume = 0;
+    if (this.laserHitSound) this.laserHitSound.volume = 0;
+    if (this.backgroundMusic) this.backgroundMusic.volume = 0;
+  }
+
+  /**
+   * Unmute all sounds
+   */
+  unmute(): void {
+    this.isMuted = false;
+    if (this.bounceSound) this.bounceSound.volume = 1;
+    if (this.laserHitSound) this.laserHitSound.volume = 1;
+    if (this.backgroundMusic) this.backgroundMusic.volume = BACKGROUND_MUSIC_VOLUME;
+  }
+
+  /**
+   * Toggle mute state
+   */
+  toggleMute(): boolean {
+    if (this.isMuted) {
+      this.unmute();
+    } else {
+      this.mute();
+    }
+    return this.isMuted;
+  }
+
+  /**
+   * Get current mute state
+   */
+  getMuteState(): boolean {
+    return this.isMuted;
   }
 }
 
