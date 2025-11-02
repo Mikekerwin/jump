@@ -49,20 +49,22 @@ export class ScrollingGround {
     const scaledWidth = this.imageWidth * scale;
     const scaledHeight = this.imageHeight * scale;
 
-    // Extend ground significantly higher since the perspective ground line is in the middle
-    // This ensures the player appears to be on the actual ground in the image
-    const adjustedHeight = scaledHeight * 2.5; // 2.5x taller to accommodate perspective
+    // Add 10px to height while maintaining aspect ratio
+    const extraHeight = 10;
+    const heightScale = (scaledHeight + extraHeight) / scaledHeight;
+    const adjustedWidth = scaledWidth * heightScale;
+    const adjustedHeight = scaledHeight + extraHeight;
 
     // Position at the bottom of the screen (adjusted for new height)
     const yPosition = canvasHeight - adjustedHeight;
 
     // Use the modulo operator to wrap the offset, creating a seamless loop
-    const wrappedOffsetX = this.offsetX % scaledWidth;
+    const wrappedOffsetX = this.offsetX % adjustedWidth;
 
     // Draw multiple copies to fill the screen width and create seamless scrolling
     // Start from the wrapped offset and continue until the entire canvas width is covered
-    for (let x = wrappedOffsetX; x < canvasWidth; x += scaledWidth) {
-      ctx.drawImage(this.image, x, yPosition, scaledWidth, adjustedHeight);
+    for (let x = wrappedOffsetX; x < canvasWidth + 1; x += adjustedWidth) {
+      ctx.drawImage(this.image, x, yPosition, adjustedWidth, adjustedHeight);
     }
   }
 
