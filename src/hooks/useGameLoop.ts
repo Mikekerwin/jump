@@ -304,9 +304,9 @@ export const useGameLoop = () => {
 
             // Check if enemy completes a cycle (20 hits)
             if (newEnemyHits >= HITS_PER_OUT) {
-              // Award an out to the enemy
+              // Award exactly 1 out to the enemy (never more)
               setEnemyOuts((prevEnemyOuts) => {
-                const newEnemyOuts = prevEnemyOuts + Math.floor(newEnemyHits / HITS_PER_OUT);
+                const newEnemyOuts = prevEnemyOuts + 1;
 
                 // Check for enemy victory (10 outs)
                 if (newEnemyOuts >= MAX_OUTS) {
@@ -332,8 +332,8 @@ export const useGameLoop = () => {
                 return newGrowth;
               });
 
-              // Reset enemy hits counter after awarding the out
-              return newEnemyHits % HITS_PER_OUT;
+              // Reset enemy hits counter to 0 after awarding the out
+              return 0;
             }
 
             return newEnemyHits;
@@ -374,9 +374,9 @@ export const useGameLoop = () => {
 
                     // Check if we hit 20 (one cycle complete)
                     if (newHitCount >= HITS_PER_OUT) {
-                      // Award an out to the player
+                      // Award exactly 1 out to the player (never more)
                       setPlayerOuts((prevOuts) => {
-                        const newOuts = prevOuts + Math.floor(newHitCount / HITS_PER_OUT);
+                        const newOuts = prevOuts + 1;
 
                         // Check for "Shoot!" game over
                         if (newOuts >= MAX_OUTS) {
@@ -403,8 +403,8 @@ export const useGameLoop = () => {
                         return newGrowth;
                       });
 
-                      // Reset hits counter after awarding the out
-                      return newHitCount % HITS_PER_OUT;
+                      // Reset hits counter to 0 after awarding the out
+                      return 0;
                     }
 
                     return newHitCount;
