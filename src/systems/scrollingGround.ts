@@ -49,8 +49,11 @@ export class ScrollingGround {
     const scaledWidth = this.imageWidth * scale;
     const scaledHeight = this.imageHeight * scale;
 
-    // Position at the bottom of the screen
-    const yPosition = canvasHeight - scaledHeight;
+    // Add 20px to height to extend ground upward while keeping bottom edge at screen bottom
+    const adjustedHeight = scaledHeight + 20;
+
+    // Position at the bottom of the screen (adjusted for new height)
+    const yPosition = canvasHeight - adjustedHeight;
 
     // Use the modulo operator to wrap the offset, creating a seamless loop
     const wrappedOffsetX = this.offsetX % scaledWidth;
@@ -58,7 +61,7 @@ export class ScrollingGround {
     // Draw multiple copies to fill the screen width and create seamless scrolling
     // Start from the wrapped offset and continue until the entire canvas width is covered
     for (let x = wrappedOffsetX; x < canvasWidth; x += scaledWidth) {
-      ctx.drawImage(this.image, x, yPosition, scaledWidth, scaledHeight);
+      ctx.drawImage(this.image, x, yPosition, scaledWidth, adjustedHeight);
     }
   }
 
