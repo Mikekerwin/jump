@@ -119,26 +119,58 @@ export const CHAOS_MULTIPLIER_PER_INTERVAL = 0.0; // No additional randomness (a
 // 🌌 BACKGROUND CONFIGURATION
 export const NUM_STARS = 90;
 export const STAR_SPEED = 1;
-export const STARS_ENABLED = false; // Toggle stars on/off (keeping code for future use)
+export const STARS_ENABLED = false; // Toggle stars on/off (disabled due to performance)
 
-// Background image configuration (forest trees - far background)
-export const BACKGROUND_IMAGE_PATH = process.env.PUBLIC_URL
-  ? `${process.env.PUBLIC_URL}/forest_light_trees.jpg`
-  : '/forest_light_trees.jpg';
+// Cloud background configuration (score 0-100)
+export const CLOUD_SKY_IMAGE_PATH = process.env.PUBLIC_URL
+  ? `${process.env.PUBLIC_URL}/cloud_light_sky.webp`
+  : '/cloud_light_sky.webp';
+export const CLOUD_GROUND_IMAGE_PATH = process.env.PUBLIC_URL
+  ? `${process.env.PUBLIC_URL}/cloud_light_ground.webp`
+  : '/cloud_light_ground.webp';
+
+// Transition ground (appears once between cloud and forest at score 100)
+export const TRANSITION_GROUND_IMAGE_PATH = process.env.PUBLIC_URL
+  ? `${process.env.PUBLIC_URL}/cloud_light_ground_forest_transition.webp`
+  : '/cloud_light_ground_forest_transition.webp';
+
+// Forest background configuration (score 100+)
+export const FOREST_TREES_IMAGE_PATH = process.env.PUBLIC_URL
+  ? `${process.env.PUBLIC_URL}/forest_light_trees.webp`
+  : '/forest_light_trees.webp';
+export const FOREST_GROUND_IMAGE_PATH = process.env.PUBLIC_URL
+  ? `${process.env.PUBLIC_URL}/forest_light_ground.webp`
+  : '/forest_light_ground.webp';
+
+// Background scroll speeds
 export const BACKGROUND_SCROLL_SPEED = 0.5; // Speed for far background trees
-
-// Ground image configuration (forest ground - foreground layer)
-export const GROUND_IMAGE_PATH = process.env.PUBLIC_URL
-  ? `${process.env.PUBLIC_URL}/forest_light_ground.png`
-  : '/forest_light_ground.png';
 export const GROUND_SCROLL_SPEED = 1; // Same speed as stars (faster than background for parallax)
-export const GROUND_HEIGHT_EXTENSION = 50; // Extra pixels to extend ground upward (experiment with this value!)
 
-// Background overlay gradient (applied over scrolling background, under stars)
-// Gradient goes from bottom (start) to top (end) of screen
-// Format: 'rgba(red, green, blue, alpha)' where alpha is 0 (transparent) to 1 (opaque)
+// Background transition threshold
+export const FOREST_UNLOCK_SCORE = 100; // Score at which forest theme unlocks
+export const GROUND_HEIGHT_EXTENSION_PERCENT = 0.025; // 2.5% of screen height. Replaces fixed pixel value.
+export const GROUND_HEIGHT_EXTENSION = 20; // DEPRECATED: Kept for reference, but not used in calculations.
+
+// Stars background gradient (applied over stars, used by backgroundStars system)
 export const BACKGROUND_OVERLAY_GRADIENT_START = 'rgba(0, 0, 0, .8)'; // Bottom: more opaque
 export const BACKGROUND_OVERLAY_GRADIENT_END = 'rgba(0, 0, 0, .65)';   // Top: more transparent
+
+// Stars opacity mask gradient (fades stars based on vertical position)
+// Stars fade from full opacity at bottom to transparent at top
+export const STARS_FADE_START_POSITION = 0.5;  // 50% screen height - full opacity (1.0)
+export const STARS_FADE_END_POSITION = 0.8;    // 80% screen height - zero opacity (0.0)
+export const STARS_FADE_START_OPACITY = 1.0;   // Full opacity at start position
+export const STARS_FADE_END_OPACITY = 0.0;     // Transparent at end position
+
+// Ground gradient overlay (applied over scrolling background, under ground layer)
+// Gradient goes from bottom (start) to top (end) of screen
+// Format: 'rgba(red, green, blue, alpha)' where alpha is 0 (transparent) to 1 (opaque)
+// Start: Black at 10% from bottom, then transitions smoothly
+// End: Transparent at 90% from bottom (10% from top)
+export const GRADIENT_OVERLAY_START_COLOR = 'rgba(0, 0, 0, 0.4)'; // Bottom: 40% opacity black
+export const GRADIENT_OVERLAY_END_COLOR = 'rgba(0, 0, 0, 0)';     // Top: fully transparent
+export const GRADIENT_OVERLAY_START_POSITION = 0.9; // Start at 90% height (10% from bottom)
+export const GRADIENT_OVERLAY_END_POSITION = 0.1;   // End at 10% height (90% from bottom)
 
 // Function to calculate responsive floor position based on viewport
 export const calculateResponsiveFloorPosition = (width: number, height: number): number => {

@@ -9,8 +9,10 @@ import { PlayerPhysics } from '../systems/playerPhysics';
 import { LaserPhysics } from '../systems/laserPhysics';
 import { AudioManager, setupAudioUnlock } from '../systems/audioManager';
 import { BackgroundStars } from '../systems/backgroundStars';
+import { StaticBackground } from '../systems/staticBackground';
 import { ScrollingBackground } from '../systems/scrollingBackground';
-import { ScrollingGround } from '../systems/scrollingGround';
+import { TransitioningGround } from '../systems/transitioningGround';
+import { GradientOverlay } from '../systems/gradientOverlay';
 import { PlayerState, LaserState, PlayerProjectile } from '../types/game';
 import {
   PLAYER_X_POSITION,
@@ -23,8 +25,12 @@ import {
   ENEMY_HEIGHT_GROWTH_PER_CYCLE,
   MAX_OUTS,
   HITS_PER_OUT,
-  BACKGROUND_IMAGE_PATH,
-  GROUND_IMAGE_PATH,
+  CLOUD_SKY_IMAGE_PATH,
+  CLOUD_GROUND_IMAGE_PATH,
+  TRANSITION_GROUND_IMAGE_PATH,
+  FOREST_TREES_IMAGE_PATH,
+  FOREST_GROUND_IMAGE_PATH,
+  GROUND_HEIGHT_EXTENSION_PERCENT,
   MAX_GROWTH_LEVELS,
   calculateResponsiveBallSize,
   calculateHorizontalRanges,
@@ -82,11 +88,15 @@ export const useGameLoop = () => {
   const laserPhysicsRef = useRef<LaserPhysics | null>(null);
   const audioManagerRef = useRef<AudioManager | null>(null);
   const backgroundStarsRef = useRef<BackgroundStars | null>(null);
-  const scrollingBackgroundRef = useRef<ScrollingBackground | null>(null);
-  const scrollingGroundRef = useRef<ScrollingGround | null>(null);
+  const staticCloudSkyRef = useRef<StaticBackground | null>(null);
+  const forestTreesBackgroundRef = useRef<ScrollingBackground | null>(null);
+  const transitioningGroundRef = useRef<TransitioningGround | null>(null);
+  const gradientOverlayRef = useRef<GradientOverlay | null>(null);
 
   const scoreRef = useRef(0);
   const gameOverRef = useRef(false); // Immediate game over flag
+  const playerHitsRef = useRef(0); // Track player hits for immediate access
+  const enemyHitsRef = useRef(0); // Track enemy hits for immediate access
 
   // Calculate responsive dimensions
   const calculateDimensions = () => {
@@ -98,13 +108,19 @@ export const useGameLoop = () => {
     const laserSize = calculateResponsiveLaserSize(responsiveBallSize);
     const responsiveFloorPosition = calculateResponsiveFloorPosition(width, height);
     const physics = calculateResponsivePhysics(height);
+    const groundOffset = height * GROUND_HEIGHT_EXTENSION_PERCENT;
+
+    const centerY = (height * responsiveFloorPosition + groundOffset) - responsiveHitboxSize / 2;
+    const floorY = centerY + responsiveBallSize / 2; // Floor is at the bottom of the ball when at rest
 
     return {
       width,
       height,
+      groundOffset,
       ballSize: responsiveBallSize,
       hitboxSize: responsiveHitboxSize,
-      centerY: height * responsiveFloorPosition - responsiveHitboxSize / 2,
+      centerY,
+      floorY,
       playerStartX: width * PLAYER_X_POSITION - responsiveBallSize / 2,
       enemyX: width * ENEMY_X_POSITION - responsiveBallSize,
       horizontalRangeLeft: horizontalRanges.left,
@@ -155,8 +171,12 @@ export const useGameLoop = () => {
     const cleanupAudio = setupAudioUnlock(audioManagerRef.current);
 
     backgroundStarsRef.current = new BackgroundStars(dims.width, dims.height);
-    scrollingBackgroundRef.current = new ScrollingBackground(BACKGROUND_IMAGE_PATH);
-    scrollingGroundRef.current = new ScrollingGround(GROUND_IMAGE_PATH);
+    staticCloudSkyRef.current = new StaticBackground(CLOUD_SKY_IMAGE_PATH);
+    // Lazy load forest trees background (only load when approaching score 100)
+    forestTreesBackgroundRef.current = new ScrollingBackground(FOREST_TREES_IMAGE_PATH, true);
+    // Lazy load forest/transition ground images (only load when approaching score 100)
+    transitioningGroundRef.current = new TransitioningGround(CLOUD_GROUND_IMAGE_PATH, TRANSITION_GROUND_IMAGE_PATH, FOREST_GROUND_IMAGE_PATH);
+    gradientOverlayRef.current = new GradientOverlay();
 
     setPlayerState(playerPhysicsRef.current.getState());
     setLasers(laserPhysicsRef.current.getLasers());
@@ -215,11 +235,18 @@ export const useGameLoop = () => {
         dims.laserHeight
       );
       backgroundStarsRef.current?.updateDimensions(dims.width, dims.height);
-      scrollingBackgroundRef.current?.updateDimensions(dims.width, dims.height);
-      scrollingGroundRef.current?.updateDimensions(dims.width, dims.height);
+      transitioningGroundRef.current?.updateDimensions(dims.width, dims.height);
     };
+
+    // Listen for both standard resize and fullscreen changes
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    document.addEventListener('fullscreenchange', handleResize);
+
+    // Cleanup listeners
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      document.removeEventListener('fullscreenchange', handleResize);
+    };
   }, []);
 
   // Main game loop
@@ -231,8 +258,17 @@ export const useGameLoop = () => {
       // Don't update anything if game is over
       if (gameOverRef.current) return;
 
-      scrollingBackgroundRef.current?.update();
-      scrollingGroundRef.current?.update();
+      // Trigger lazy loading of forest images when approaching score 100
+      if (scoreRef.current >= 90) {
+        forestTreesBackgroundRef.current?.triggerLoad();
+        transitioningGroundRef.current?.triggerForestLoad();
+      }
+
+      // Update background based on score (forest unlocks at 100)
+      if (scoreRef.current >= 100) {
+        forestTreesBackgroundRef.current?.update();
+      }
+      transitioningGroundRef.current?.update(scoreRef.current);
       backgroundStarsRef.current?.update();
       laserPhysicsRef.current?.updateLaserCount(scoreRef.current);
       setNumLasers(laserPhysicsRef.current?.getNumLasers() || 1);
@@ -297,47 +333,50 @@ export const useGameLoop = () => {
           setWasHit(true);
           audioManagerRef.current?.playLaserHit();
           setTimeout(() => setWasHit(false), 250);
+        }
 
-          // Enemy scores when laser hits player
-          setEnemyHits((prevEnemyHits) => {
-            const newEnemyHits = prevEnemyHits + 1;
+        // Use enemyHitCount from laserPhysics which is already guarded to only count once per frame
+        if (laserUpdate.enemyHitCount > 0) {
+          // Update ref immediately to prevent multiple out awards in same frame
+          enemyHitsRef.current += laserUpdate.enemyHitCount;
+          const currentEnemyHits = enemyHitsRef.current;
 
-            // Check if enemy completes a cycle (exactly 20 hits)
-            if (newEnemyHits === HITS_PER_OUT) {
-              // Award exactly 1 out to the enemy (never more)
-              setEnemyOuts((prevEnemyOuts) => {
-                const newEnemyOuts = prevEnemyOuts + 1;
+          // Check if enemy completes a cycle (20 or more hits)
+          if (currentEnemyHits >= HITS_PER_OUT) {
+            // Reset to remainder immediately in ref
+            enemyHitsRef.current = currentEnemyHits % HITS_PER_OUT;
 
-                // Check for enemy victory (10 outs)
-                if (newEnemyOuts >= MAX_OUTS) {
-                  gameOverRef.current = true; // Immediately stop game loop
-                  setGameOver(true);
-                }
+            // ALWAYS award exactly 1 out, never more
+            setEnemyOuts((prevEnemyOuts) => {
+              const newEnemyOuts = prevEnemyOuts + 1;
 
-                return Math.min(newEnemyOuts, MAX_OUTS);
-              });
+              // Check for enemy victory (10 outs)
+              if (newEnemyOuts >= MAX_OUTS) {
+                gameOverRef.current = true; // Immediately stop game loop
+                setGameOver(true);
+              }
 
-              // Player grows by 1 level when enemy gets an out (hits player 20 times)
-              setPlayerGrowthLevel((prevGrowth) => {
-                const newGrowth = Math.min(prevGrowth + 1, MAX_GROWTH_LEVELS);
-                playerGrowthLevelRef.current = newGrowth;
-                return newGrowth;
-              });
+              return Math.min(newEnemyOuts, MAX_OUTS);
+            });
 
-              // Enemy shrinks by 1 level when they get an out (reward for hitting player 20 times)
-              setEnemyGrowthLevel((prevGrowth) => {
-                const newGrowth = Math.max(prevGrowth - 1, 0);
-                enemyGrowthLevelRef.current = newGrowth;
-                laserPhysicsRef.current?.setEnemyGrowthLevel(enemyGrowthLevelRef.current);
-                return newGrowth;
-              });
+            // Player grows by exactly 1 level
+            setPlayerGrowthLevel((prevGrowth) => {
+              const newGrowth = Math.min(prevGrowth + 1, MAX_GROWTH_LEVELS);
+              playerGrowthLevelRef.current = newGrowth;
+              return newGrowth;
+            });
 
-              // Reset enemy hits counter to 0 after awarding the out
-              return 0;
-            }
+            // Enemy shrinks by exactly 1 level
+            setEnemyGrowthLevel((prevGrowth) => {
+              const newGrowth = Math.max(prevGrowth - 1, 0);
+              enemyGrowthLevelRef.current = newGrowth;
+              laserPhysicsRef.current?.setEnemyGrowthLevel(enemyGrowthLevelRef.current);
+              return newGrowth;
+            });
+          }
 
-            return newEnemyHits;
-          });
+          // Update state to match ref
+          setEnemyHits(enemyHitsRef.current);
         }
 
         setEnemyY(laserPhysicsRef.current.getEnemyY());
@@ -369,46 +408,49 @@ export const useGameLoop = () => {
                 // Only count one hit per frame, even if multiple projectiles hit
                 if (!enemyHitThisFrame) {
                   enemyHitThisFrame = true;
-                  setHitCount((prevHit) => {
-                    const newHitCount = prevHit + 1;
 
-                    // Check if we hit exactly 20 (one cycle complete)
-                    if (newHitCount === HITS_PER_OUT) {
-                      // Award exactly 1 out to the player (never more)
-                      setPlayerOuts((prevOuts) => {
-                        const newOuts = prevOuts + 1;
+                  // Update ref immediately to prevent multiple out awards in same frame
+                  playerHitsRef.current += 1;
+                  const currentPlayerHits = playerHitsRef.current;
 
-                        // Check for "Shoot!" game over
-                        if (newOuts >= MAX_OUTS) {
-                          gameOverRef.current = true; // Immediately stop game loop
-                          setShootGameOver(true);
-                          setGameOver(true);
-                        }
+                  // Check if we hit 20 or more (one cycle complete)
+                  if (currentPlayerHits >= HITS_PER_OUT) {
+                    // Reset to remainder immediately in ref
+                    playerHitsRef.current = currentPlayerHits % HITS_PER_OUT;
 
-                        return Math.min(newOuts, MAX_OUTS);
-                      });
+                    // ALWAYS award exactly 1 out to the player, never more
+                    setPlayerOuts((prevOuts) => {
+                      const newOuts = prevOuts + 1;
 
-                      // Enemy grows by 1 level when player gets an out (hits enemy 20 times)
-                      setEnemyGrowthLevel((prevGrowth) => {
-                        const newGrowth = Math.min(prevGrowth + 1, MAX_GROWTH_LEVELS);
-                        enemyGrowthLevelRef.current = newGrowth;
-                        laserPhysicsRef.current?.setEnemyGrowthLevel(enemyGrowthLevelRef.current);
-                        return newGrowth;
-                      });
+                      // Check for "Shoot!" game over
+                      if (newOuts >= MAX_OUTS) {
+                        gameOverRef.current = true; // Immediately stop game loop
+                        setShootGameOver(true);
+                        setGameOver(true);
+                      }
 
-                      // Player shrinks by 1 level when they get an out (reward for hitting enemy 20 times)
-                      setPlayerGrowthLevel((prevGrowth) => {
-                        const newGrowth = Math.max(prevGrowth - 1, 0);
-                        playerGrowthLevelRef.current = newGrowth;
-                        return newGrowth;
-                      });
+                      return Math.min(newOuts, MAX_OUTS);
+                    });
 
-                      // Reset hits counter to 0 after awarding the out
-                      return 0;
-                    }
+                    // Enemy grows by exactly 1 level
+                    setEnemyGrowthLevel((prevGrowth) => {
+                      const newGrowth = Math.min(prevGrowth + 1, MAX_GROWTH_LEVELS);
+                      enemyGrowthLevelRef.current = newGrowth;
+                      laserPhysicsRef.current?.setEnemyGrowthLevel(enemyGrowthLevelRef.current);
+                      return newGrowth;
+                    });
 
-                    return newHitCount;
-                  });
+                    // Player shrinks by exactly 1 level
+                    setPlayerGrowthLevel((prevGrowth) => {
+                      const newGrowth = Math.max(prevGrowth - 1, 0);
+                      playerGrowthLevelRef.current = newGrowth;
+                      return newGrowth;
+                    });
+                  }
+
+                  // Update state to match ref
+                  setHitCount(playerHitsRef.current);
+
                   setEnemyWasHit(true);
                   audioManagerRef.current?.playLaserHit();
                   setTimeout(() => setEnemyWasHit(false), 250);
@@ -530,8 +572,8 @@ export const useGameLoop = () => {
     playerPhysicsRef.current?.reset(dims.playerStartX, dims.centerY);
     laserPhysicsRef.current?.reset();
     backgroundStarsRef.current?.reset();
-    scrollingBackgroundRef.current?.reset();
-    scrollingGroundRef.current?.reset();
+    forestTreesBackgroundRef.current?.reset();
+    transitioningGroundRef.current?.reset();
     setPlayerState(playerPhysicsRef.current?.getState() || playerState);
     setLasers(laserPhysicsRef.current?.getLasers() || []);
     setEnemyY(laserPhysicsRef.current?.getEnemyY() || dims.centerY);
@@ -590,9 +632,14 @@ export const useGameLoop = () => {
     playerGrowthLevel: animatedPlayerGrowthLevel, // Export animated growth for smooth rendering
     enemyGrowthLevel: animatedEnemyGrowthLevel, // Export animated growth for smooth rendering
     dimensions: dimensionsRef.current,
+    // ✅ EXPORT IN CORRECT RENDER ORDER
+    // Background layers (drawn first)
     backgroundStars: backgroundStarsRef.current,
-    scrollingBackground: scrollingBackgroundRef.current,
-    scrollingGround: scrollingGroundRef.current,
+    staticCloudSky: staticCloudSkyRef.current,
+    forestTreesBackground: forestTreesBackgroundRef.current,
+    transitioningGround: transitioningGroundRef.current,
+    gradientOverlay: gradientOverlayRef.current,
+    // Mute state (not for rendering)
     isMuted,
     handleJumpStart,
     handleJumpEnd,

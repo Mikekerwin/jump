@@ -11,20 +11,60 @@ export class ScrollingBackground {
   private imageHeight: number = 0;
   private image: HTMLImageElement | null = null;
   private imageLoaded: boolean = false;
+  private transitionStarted: boolean = false;
+  private transitionOffsetX: number = 0;
+  private imagePath: string;
 
-  constructor(imagePath: string) {
+  constructor(imagePath: string, lazyLoad: boolean = false) {
+    this.imagePath = imagePath;
+
+    if (!lazyLoad) {
+      // Load immediately if not lazy loading
+      this.loadImage();
+    } else {
+      console.log(`Background image set to lazy load: ${imagePath}`);
+    }
+  }
+
+  /**
+   * Load the image (can be called immediately or deferred for lazy loading)
+   */
+  private loadImage(): void {
+    if (this.image) return; // Already loading or loaded
+
     this.image = new Image();
     this.image.onload = () => {
       this.imageWidth = this.image!.width;
       this.imageHeight = this.image!.height;
       this.imageLoaded = true;
-      console.log(`Background image loaded: ${imagePath} (${this.imageWidth}x${this.imageHeight})`);
+      console.log(`Background image loaded: ${this.imagePath} (${this.imageWidth}x${this.imageHeight})`);
     };
     this.image.onerror = (error) => {
-      console.error(`Failed to load background image: ${imagePath}`, error);
+      console.error(`Failed to load background image: ${this.imagePath}`, error);
     };
-    this.image.src = imagePath;
-    console.log(`Loading background image from: ${imagePath}`);
+    this.image.src = this.imagePath;
+    console.log(`Loading background image from: ${this.imagePath}`);
+  }
+
+  /**
+   * Trigger lazy loading of the image (call when approaching score threshold)
+   */
+  public triggerLoad(): void {
+    if (!this.imageLoaded && !this.image) {
+      console.log(`Triggering lazy load for: ${this.imagePath}`);
+      this.loadImage();
+    }
+  }
+
+  /**
+   * Start the transition (begin scrolling in from right)
+   */
+  startTransition(): void {
+    if (!this.transitionStarted) {
+      this.transitionStarted = true;
+      this.transitionOffsetX = this.offsetX;
+      console.log('Forest trees background: Starting scroll-in transition');
+    }
   }
 
   /**
@@ -39,6 +79,7 @@ export class ScrollingBackground {
 
   /**
    * Render the scrolling background
+   * If in transition, scrolls in from right; otherwise loops normally
    */
   render(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
     if (!this.imageLoaded || !this.image) return;
@@ -48,13 +89,29 @@ export class ScrollingBackground {
     const scaledWidth = this.imageWidth * scale;
     const scaledHeight = canvasHeight;
 
-    // Use the modulo operator to wrap the offset, creating a seamless loop.
-    const wrappedOffsetX = this.offsetX % scaledWidth;
+    if (!this.transitionStarted) {
+      // Not yet started - don't render anything
+      return;
+    }
 
-    // Draw multiple copies to fill the screen and create seamless scrolling.
-    // Add 1px overlap to prevent black lines from rounding errors
-    for (let x = wrappedOffsetX; x < canvasWidth + 1; x += scaledWidth) {
-      ctx.drawImage(this.image, x, 0, scaledWidth + 1, scaledHeight);
+    // Calculate how far we've scrolled since transition started
+    const scrolledSinceTransition = Math.abs(this.offsetX - this.transitionOffsetX);
+
+    // Start the forest at the right edge and scroll it in
+    const forestStartX = canvasWidth - scrolledSinceTransition;
+
+    // Check if we've scrolled far enough that the forest should loop
+    if (forestStartX + scaledWidth < 0) {
+      // Forest has fully scrolled in - now loop normally
+      const wrappedOffsetX = this.offsetX % scaledWidth;
+      for (let x = wrappedOffsetX; x < canvasWidth + 1; x += scaledWidth) {
+        ctx.drawImage(this.image, x, 0, scaledWidth + 1, scaledHeight);
+      }
+    } else {
+      // Still scrolling in - draw forest tiles starting from forestStartX
+      for (let x = forestStartX; x < canvasWidth + 1; x += scaledWidth) {
+        ctx.drawImage(this.image, x, 0, scaledWidth + 1, scaledHeight);
+      }
     }
   }
 
