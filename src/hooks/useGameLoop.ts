@@ -172,9 +172,8 @@ export const useGameLoop = () => {
 
     backgroundStarsRef.current = new BackgroundStars(dims.width, dims.height);
     staticCloudSkyRef.current = new StaticBackground(CLOUD_SKY_IMAGE_PATH);
-    // Lazy load forest trees background (only load when approaching score 100)
-    forestTreesBackgroundRef.current = new ScrollingBackground(FOREST_TREES_IMAGE_PATH, true);
-    // Lazy load forest/transition ground images (only load when approaching score 100)
+    // Load all images immediately (preloaded by loading screen)
+    forestTreesBackgroundRef.current = new ScrollingBackground(FOREST_TREES_IMAGE_PATH, false);
     transitioningGroundRef.current = new TransitioningGround(CLOUD_GROUND_IMAGE_PATH, TRANSITION_GROUND_IMAGE_PATH, FOREST_GROUND_IMAGE_PATH);
     gradientOverlayRef.current = new GradientOverlay();
 
@@ -257,12 +256,6 @@ export const useGameLoop = () => {
     const loop = () => {
       // Don't update anything if game is over
       if (gameOverRef.current) return;
-
-      // Trigger lazy loading of forest images when approaching score 100
-      if (scoreRef.current >= 90) {
-        forestTreesBackgroundRef.current?.triggerLoad();
-        transitioningGroundRef.current?.triggerForestLoad();
-      }
 
       // Update background based on score (forest unlocks at 100)
       if (scoreRef.current >= 100) {

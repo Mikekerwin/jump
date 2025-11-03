@@ -14,11 +14,33 @@ import { ScoreDisplay } from './components/ScoreDisplay';
 import { FullscreenButton } from './components/FullscreenButton';
 import { SoundToggleButton } from './components/SoundToggleButton';
 import { EnergyBar } from './components/EnergyBar';
-import { STARS_ENABLED } from './config/gameConfig';
+import { Shadow } from './components/Shadow';
+import LoadingScreen from './components/LoadingScreen';
+import { useImagePreloader } from './hooks/useImagePreloader';
+import {
+  STARS_ENABLED,
+  GROWTH_SCALE_PER_LEVEL,
+  CLOUD_SKY_IMAGE_PATH,
+  CLOUD_GROUND_IMAGE_PATH,
+  TRANSITION_GROUND_IMAGE_PATH,
+  FOREST_GROUND_IMAGE_PATH,
+  FOREST_TREES_IMAGE_PATH
+} from './config/gameConfig';
 
 const App: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const laserRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  // Preload all game images
+  const imagePaths = [
+    CLOUD_SKY_IMAGE_PATH,
+    CLOUD_GROUND_IMAGE_PATH,
+    TRANSITION_GROUND_IMAGE_PATH,
+    FOREST_GROUND_IMAGE_PATH,
+    FOREST_TREES_IMAGE_PATH
+  ];
+
+  const { isLoading } = useImagePreloader(imagePaths, 5000); // Minimum 5 seconds
 
   const {
     score,
@@ -41,8 +63,10 @@ const App: React.FC = () => {
     enemyGrowthLevel,
     dimensions,
     backgroundStars,
-    scrollingBackground,
-    scrollingGround,
+    staticCloudSky,
+    forestTreesBackground,
+    transitioningGround,
+    gradientOverlay,
     isMuted,
     handleJumpStart,
     handleJumpEnd,
@@ -54,10 +78,19 @@ const App: React.FC = () => {
   } = useGameLoop();
 
   /**
-   * Render scrolling background, ground, and stars (if enabled)
+   * Start forest background transition when score hits 100
    */
   useEffect(() => {
-    if (!canvasRef.current || !backgroundStars || !scrollingBackground || !scrollingGround) return;
+    if (score >= 100 && forestTreesBackground) {
+      forestTreesBackground.startTransition();
+    }
+  }, [score, forestTreesBackground]);
+
+  /**
+   * Render progressive background system: clouds → forest transition at score 100
+   */
+  useEffect(() => {
+    if (!canvasRef.current || !backgroundStars || !staticCloudSky || !forestTreesBackground || !transitioningGround || !gradientOverlay) return;
 
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx) return;
@@ -66,16 +99,22 @@ const App: React.FC = () => {
       // Clear canvas
       ctx.clearRect(0, 0, dimensions.width, dimensions.height);
 
-      // Render scrolling background first (far background - trees)
-      scrollingBackground.render(ctx, dimensions.width, dimensions.height);
+      // 1. Render static cloud sky (always present, doesn't scroll)
+      staticCloudSky.render(ctx, dimensions.width, dimensions.height);
 
-      // Render stars on top of background (if enabled)
+      // 2. Render forest trees scrolling background (scrolls in from right at score 100)
+      forestTreesBackground.render(ctx, dimensions.width, dimensions.height);
+
+      // 3. Render gradient overlay (black to transparent from bottom to top) - behind stars
+      gradientOverlay.render(ctx, dimensions.width, dimensions.height);
+
+      // 4. Render stars on top of gradient, behind ground (if enabled)
       if (STARS_ENABLED) {
         backgroundStars.render(ctx);
       }
 
-      // Render scrolling ground last (foreground layer - on top of everything else on canvas)
-      scrollingGround.render(ctx, dimensions.width, dimensions.height);
+      // 5. Render transitioning ground (cloud ground → forest ground at score 100) - on top of everything
+      transitioningGround.render(ctx, dimensions.width, dimensions.height, score);
 
       if (!gameOver) {
         requestAnimationFrame(renderLoop);
@@ -83,7 +122,7 @@ const App: React.FC = () => {
     };
 
     requestAnimationFrame(renderLoop);
-  }, [backgroundStars, scrollingBackground, scrollingGround, gameOver, dimensions]);
+  }, [backgroundStars, staticCloudSky, forestTreesBackground, transitioningGround, gradientOverlay, gameOver, dimensions, score]);
 
   /**
    * Setup input controls
@@ -152,6 +191,9 @@ const App: React.FC = () => {
         touchAction: 'manipulation',
       }}
     >
+      {/* Loading Screen - Shows above everything until images are loaded */}
+      <LoadingScreen isVisible={isLoading} />
+
       {/* Background Stars */}
       <canvas
         ref={canvasRef}
@@ -233,12 +275,32 @@ const App: React.FC = () => {
           {/* Energy Bar */}
           {!gameOver && <EnergyBar energy={energy} />}
 
+          {/* Player Shadow */}
+          <Shadow
+            x={playerState.position.x}
+            characterY={playerState.position.y}
+            floorY={dimensions.floorY}
+            characterWidth={dimensions.ballSize * (1 + playerGrowthLevel * GROWTH_SCALE_PER_LEVEL)}
+            baseSize={dimensions.ballSize}
+            growthLevel={playerGrowthLevel}
+          />
+
           {/* Player Ball */}
           <Player
             playerState={playerState}
             isHit={wasHit}
             growthLevel={playerGrowthLevel}
             ballSize={dimensions.ballSize}
+          />
+
+          {/* Enemy Shadow */}
+          <Shadow
+            x={dimensions.enemyX}
+            characterY={enemyY}
+            floorY={dimensions.floorY}
+            characterWidth={dimensions.ballSize * (1 + enemyGrowthLevel * GROWTH_SCALE_PER_LEVEL)}
+            baseSize={dimensions.ballSize}
+            growthLevel={enemyGrowthLevel}
           />
 
           {/* Enemy Launcher */}

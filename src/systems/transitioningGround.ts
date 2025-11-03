@@ -21,15 +21,9 @@ export class TransitioningGround {
   private forestImageLoaded: boolean = false;
   private transitionStarted: boolean = false;
   private transitionOffsetX: number = 0; // Offset when transition started
-  private transitionImagePath: string;
-  private forestImagePath: string;
-  private forestImagesLoading: boolean = false;
 
   constructor(cloudImagePath: string, transitionImagePath: string, forestImagePath: string) {
-    this.transitionImagePath = transitionImagePath;
-    this.forestImagePath = forestImagePath;
-
-    // Load cloud ground immediately (always needed)
+    // Load all images immediately (preloaded by loading screen)
     this.cloudImage = new Image();
     this.cloudImage.onload = () => {
       this.cloudImageWidth = this.cloudImage!.width;
@@ -42,46 +36,31 @@ export class TransitioningGround {
     };
     this.cloudImage.src = cloudImagePath;
 
-    // Don't load transition and forest images yet - lazy load them later
-    console.log(`Transition and forest ground set to lazy load`);
-  }
-
-  /**
-   * Trigger lazy loading of transition and forest images (call when approaching score 100)
-   */
-  public triggerForestLoad(): void {
-    if (this.forestImagesLoading || (this.transitionImageLoaded && this.forestImageLoaded)) {
-      return; // Already loading or loaded
-    }
-
-    this.forestImagesLoading = true;
-    console.log(`Triggering lazy load for transition and forest ground images`);
-
-    // Load transition ground
+    // Load transition ground immediately
     this.transitionImage = new Image();
     this.transitionImage.onload = () => {
       this.transitionImageWidth = this.transitionImage!.width;
       this.transitionImageHeight = this.transitionImage!.height;
       this.transitionImageLoaded = true;
-      console.log(`Transition ground loaded: ${this.transitionImagePath} (${this.transitionImageWidth}x${this.transitionImageHeight})`);
+      console.log(`Transition ground loaded: ${transitionImagePath} (${this.transitionImageWidth}x${this.transitionImageHeight})`);
     };
     this.transitionImage.onerror = (error) => {
-      console.error(`Failed to load transition ground: ${this.transitionImagePath}`, error);
+      console.error(`Failed to load transition ground: ${transitionImagePath}`, error);
     };
-    this.transitionImage.src = this.transitionImagePath;
+    this.transitionImage.src = transitionImagePath;
 
-    // Load forest ground
+    // Load forest ground immediately
     this.forestImage = new Image();
     this.forestImage.onload = () => {
       this.forestImageWidth = this.forestImage!.width;
       this.forestImageHeight = this.forestImage!.height;
       this.forestImageLoaded = true;
-      console.log(`Forest ground loaded: ${this.forestImagePath} (${this.forestImageWidth}x${this.forestImageHeight})`);
+      console.log(`Forest ground loaded: ${forestImagePath} (${this.forestImageWidth}x${this.forestImageHeight})`);
     };
     this.forestImage.onerror = (error) => {
-      console.error(`Failed to load forest ground: ${this.forestImagePath}`, error);
+      console.error(`Failed to load forest ground: ${forestImagePath}`, error);
     };
-    this.forestImage.src = this.forestImagePath;
+    this.forestImage.src = forestImagePath;
   }
 
   /**
