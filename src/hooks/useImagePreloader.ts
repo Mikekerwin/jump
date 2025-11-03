@@ -10,21 +10,24 @@ export const useImagePreloader = (imagePaths: string[], minLoadTime: number = 50
   const [minTimeElapsed, setMinTimeElapsed] = useState(false);
 
   useEffect(() => {
+    console.log('🔄 Image preloader started with paths:', imagePaths);
+
     // Start minimum time timer
     const minTimeTimer = setTimeout(() => {
+      console.log('⏰ Minimum time elapsed');
       setMinTimeElapsed(true);
     }, minLoadTime);
 
     // Preload all images
     const imagePromises = imagePaths.map((path) => {
-      return new Promise<void>((resolve, reject) => {
+      return new Promise<void>((resolve) => {
         const img = new Image();
         img.onload = () => {
-          console.log(`Loaded: ${path}`);
+          console.log(`✅ Loaded: ${path}`);
           resolve();
         };
-        img.onerror = () => {
-          console.warn(`Failed to load: ${path}`);
+        img.onerror = (error) => {
+          console.error(`❌ Failed to load: ${path}`, error);
           resolve(); // Resolve anyway to not block loading
         };
         img.src = path;
@@ -33,7 +36,7 @@ export const useImagePreloader = (imagePaths: string[], minLoadTime: number = 50
 
     // Wait for all images to load
     Promise.all(imagePromises).then(() => {
-      console.log('All images loaded');
+      console.log('✅ All images loaded');
       setImagesLoaded(true);
     });
 
@@ -46,8 +49,9 @@ export const useImagePreloader = (imagePaths: string[], minLoadTime: number = 50
   // 1. All images are loaded
   // 2. Minimum time has elapsed
   useEffect(() => {
+    console.log(`📊 Status - Images: ${imagesLoaded}, Time: ${minTimeElapsed}`);
     if (imagesLoaded && minTimeElapsed) {
-      console.log('Loading complete - both images loaded and min time elapsed');
+      console.log('🎉 Loading complete - fading out now');
       setIsLoading(false);
     }
   }, [imagesLoaded, minTimeElapsed]);

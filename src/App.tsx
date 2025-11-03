@@ -3,7 +3,7 @@
  * Main application component
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import { useGameLoop } from './hooks/useGameLoop';
 import { Player } from './components/Player';
 import { Enemy } from './components/Enemy';
@@ -31,14 +31,14 @@ const App: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const laserRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-  // Preload all game images
-  const imagePaths = [
+  // Preload all game images - use useMemo to prevent array recreation on every render
+  const imagePaths = useMemo(() => [
     CLOUD_SKY_IMAGE_PATH,
     CLOUD_GROUND_IMAGE_PATH,
     TRANSITION_GROUND_IMAGE_PATH,
     FOREST_GROUND_IMAGE_PATH,
     FOREST_TREES_IMAGE_PATH
-  ];
+  ], []);
 
   const { isLoading } = useImagePreloader(imagePaths, 5000); // Minimum 5 seconds
 
