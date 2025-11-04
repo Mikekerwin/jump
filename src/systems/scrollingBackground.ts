@@ -1,6 +1,7 @@
 /**
  * Scrolling Background System
  * Handles smooth horizontal scrolling of repeating background image
+ * Uses offscreen canvas caching for better performance on mobile
  */
 
 import { BACKGROUND_SCROLL_SPEED } from '../config/gameConfig';
@@ -14,6 +15,9 @@ export class ScrollingBackground {
   private transitionStarted: boolean = false;
   private transitionOffsetX: number = 0;
   private imagePath: string;
+  private cachedTile: HTMLCanvasElement | null = null;
+  private cachedTileWidth: number = 0;
+  private cachedTileHeight: number = 0;
 
   constructor(imagePath: string, lazyLoad: boolean = false) {
     this.imagePath = imagePath;
@@ -80,6 +84,7 @@ export class ScrollingBackground {
   /**
    * Render the scrolling background
    * If in transition, scrolls in from right; otherwise loops normally
+   * Uses offscreen canvas caching to avoid re-rendering the same tile
    */
   render(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
     if (!this.imageLoaded || !this.image) return;
@@ -94,6 +99,22 @@ export class ScrollingBackground {
       return;
     }
 
+    // Check if we need to create/update the cached tile
+    if (!this.cachedTile || this.cachedTileWidth !== scaledWidth || this.cachedTileHeight !== scaledHeight) {
+      this.cachedTile = document.createElement('canvas');
+      this.cachedTile.width = Math.ceil(scaledWidth) + 1; // +1 to prevent gaps
+      this.cachedTile.height = scaledHeight;
+      this.cachedTileWidth = scaledWidth;
+      this.cachedTileHeight = scaledHeight;
+
+      const cacheCtx = this.cachedTile.getContext('2d');
+      if (!cacheCtx) return;
+
+      // Render tile to offscreen canvas once
+      cacheCtx.drawImage(this.image, 0, 0, this.cachedTile.width, scaledHeight);
+      console.log(`📦 Scrolling background tile cached at ${this.cachedTile.width}x${scaledHeight}`);
+    }
+
     // Calculate how far we've scrolled since transition started
     const scrolledSinceTransition = Math.abs(this.offsetX - this.transitionOffsetX);
 
@@ -105,12 +126,14 @@ export class ScrollingBackground {
       // Forest has fully scrolled in - now loop normally
       const wrappedOffsetX = this.offsetX % scaledWidth;
       for (let x = wrappedOffsetX; x < canvasWidth + 1; x += scaledWidth) {
-        ctx.drawImage(this.image, x, 0, scaledWidth + 1, scaledHeight);
+        // Draw cached tile instead of original image
+        ctx.drawImage(this.cachedTile, x, 0);
       }
     } else {
       // Still scrolling in - draw forest tiles starting from forestStartX
       for (let x = forestStartX; x < canvasWidth + 1; x += scaledWidth) {
-        ctx.drawImage(this.image, x, 0, scaledWidth + 1, scaledHeight);
+        // Draw cached tile instead of original image
+        ctx.drawImage(this.cachedTile, x, 0);
       }
     }
   }

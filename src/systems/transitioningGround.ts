@@ -1,6 +1,7 @@
 /**
  * Transitioning Ground System
  * Handles transitioning from cloud ground to forest ground at score 100
+ * Uses offscreen canvas caching for better performance on mobile
  */
 
 import { GROUND_SCROLL_SPEED, GROUND_HEIGHT_EXTENSION_PERCENT, FOREST_UNLOCK_SCORE } from '../config/gameConfig';
@@ -21,6 +22,13 @@ export class TransitioningGround {
   private forestImageLoaded: boolean = false;
   private transitionStarted: boolean = false;
   private transitionOffsetX: number = 0; // Offset when transition started
+
+  // Offscreen canvas caching for performance
+  private cachedCloudTile: HTMLCanvasElement | null = null;
+  private cachedTransitionTile: HTMLCanvasElement | null = null;
+  private cachedForestTile: HTMLCanvasElement | null = null;
+  private cachedWidth: number = 0;
+  private cachedHeight: number = 0;
 
   constructor(cloudImagePath: string, transitionImagePath: string, forestImagePath: string) {
     // Load all images immediately (preloaded by loading screen)
@@ -64,6 +72,70 @@ export class TransitioningGround {
   }
 
   /**
+   * Create cached tiles if needed (when canvas size changes or first render)
+   */
+  private createCachedTiles(canvasWidth: number, canvasHeight: number, heightExtension: number, baseScale: number): void {
+    // Check if we need to recreate caches
+    if (this.cachedCloudTile && this.cachedWidth === canvasWidth && this.cachedHeight === canvasHeight) {
+      return; // Already cached at this size
+    }
+
+    this.cachedWidth = canvasWidth;
+    this.cachedHeight = canvasHeight;
+
+    // Cache cloud tile
+    if (this.cloudImageLoaded && this.cloudImage) {
+      const cloudScaledWidth = this.cloudImageWidth * baseScale;
+      const cloudScaledHeight = this.cloudImageHeight * baseScale;
+      const cloudAdjustedHeight = cloudScaledHeight + heightExtension;
+
+      this.cachedCloudTile = document.createElement('canvas');
+      this.cachedCloudTile.width = Math.ceil(cloudScaledWidth) + 1;
+      this.cachedCloudTile.height = cloudAdjustedHeight;
+
+      const ctx = this.cachedCloudTile.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(this.cloudImage, 0, 0, this.cachedCloudTile.width, cloudAdjustedHeight);
+        console.log(`📦 Cloud ground tile cached`);
+      }
+    }
+
+    // Cache transition tile
+    if (this.transitionImageLoaded && this.transitionImage) {
+      const transitionScaledWidth = this.transitionImageWidth * baseScale;
+      const transitionScaledHeight = this.transitionImageHeight * baseScale;
+      const transitionAdjustedHeight = transitionScaledHeight + heightExtension;
+
+      this.cachedTransitionTile = document.createElement('canvas');
+      this.cachedTransitionTile.width = Math.ceil(transitionScaledWidth) + 1;
+      this.cachedTransitionTile.height = transitionAdjustedHeight;
+
+      const ctx = this.cachedTransitionTile.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(this.transitionImage, 0, 0, this.cachedTransitionTile.width, transitionAdjustedHeight);
+        console.log(`📦 Transition ground tile cached`);
+      }
+    }
+
+    // Cache forest tile
+    if (this.forestImageLoaded && this.forestImage) {
+      const forestScaledWidth = this.forestImageWidth * baseScale;
+      const forestScaledHeight = this.forestImageHeight * baseScale;
+      const forestAdjustedHeight = forestScaledHeight + heightExtension;
+
+      this.cachedForestTile = document.createElement('canvas');
+      this.cachedForestTile.width = Math.ceil(forestScaledWidth) + 1;
+      this.cachedForestTile.height = forestAdjustedHeight;
+
+      const ctx = this.cachedForestTile.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(this.forestImage, 0, 0, this.cachedForestTile.width, forestAdjustedHeight);
+        console.log(`📦 Forest ground tile cached`);
+      }
+    }
+  }
+
+  /**
    * Update ground offset for scrolling animation
    */
   update(score: number): void {
@@ -84,6 +156,7 @@ export class TransitioningGround {
   /**
    * Render the scrolling ground at the bottom of the screen
    * Sequence: cloud → transition tile → forest (looping)
+   * Uses offscreen canvas caching for better performance
    */
   render(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number, score: number): void {
     if (!this.cloudImageLoaded || !this.cloudImage) return;
@@ -94,45 +167,39 @@ export class TransitioningGround {
     const cloudScale = canvasWidth / this.cloudImageWidth;
     const cloudScaledWidth = this.cloudImageWidth * cloudScale;
     const cloudScaledHeight = this.cloudImageHeight * cloudScale;
-    // Apply height extension but DON'T scale the width - keep aspect ratio pure
     const cloudAdjustedWidth = cloudScaledWidth;
     const cloudAdjustedHeight = cloudScaledHeight + heightExtension;
     const yPosition = canvasHeight - cloudAdjustedHeight;
 
+    // Create cached tiles if needed
+    this.createCachedTiles(canvasWidth, canvasHeight, heightExtension, cloudScale);
+
     if (!this.transitionStarted) {
       // Before score 100: Just draw cloud ground looping
+      if (!this.cachedCloudTile) return;
+
       const wrappedOffsetX = this.offsetX % cloudAdjustedWidth;
       for (let x = wrappedOffsetX; x < canvasWidth + 2; x += cloudAdjustedWidth) {
-        ctx.drawImage(this.cloudImage, x, yPosition, cloudAdjustedWidth + 1, cloudAdjustedHeight);
+        ctx.drawImage(this.cachedCloudTile, x, yPosition);
       }
     } else {
       // After score 100: Draw cloud → transition → forest sequence
-      if (!this.transitionImageLoaded || !this.transitionImage || !this.forestImageLoaded || !this.forestImage) {
-        // Images not loaded yet, just draw clouds
+      if (!this.cachedCloudTile || !this.cachedTransitionTile || !this.cachedForestTile) {
+        // Cached tiles not ready yet, just draw clouds
+        if (!this.cachedCloudTile) return;
         const wrappedOffsetX = this.offsetX % cloudAdjustedWidth;
         for (let x = wrappedOffsetX; x < canvasWidth + 2; x += cloudAdjustedWidth) {
-          ctx.drawImage(this.cloudImage, x, yPosition, cloudAdjustedWidth + 1, cloudAdjustedHeight);
+          ctx.drawImage(this.cachedCloudTile, x, yPosition);
         }
         return;
       }
 
       // Use the SAME scale for all images to ensure seamless alignment
-      // Use cloud scale as the base scale for all tiles
       const baseScale = cloudScale;
 
-      // Calculate transition ground dimensions using the same base scale
-      const transitionScaledWidth = this.transitionImageWidth * baseScale;
-      const transitionScaledHeight = this.transitionImageHeight * baseScale;
-      // Apply height extension but DON'T scale the width - keep it proportional to source
-      const transitionAdjustedWidth = transitionScaledWidth;
-      const transitionAdjustedHeight = transitionScaledHeight + heightExtension;
-
-      // Calculate forest ground dimensions using the same base scale
-      const forestScaledWidth = this.forestImageWidth * baseScale;
-      const forestScaledHeight = this.forestImageHeight * baseScale;
-      // Apply height extension but DON'T scale the width - keep it proportional to source
-      const forestAdjustedWidth = forestScaledWidth;
-      const forestAdjustedHeight = forestScaledHeight + heightExtension;
+      // Calculate transition and forest dimensions
+      const transitionAdjustedWidth = this.transitionImageWidth * baseScale;
+      const forestAdjustedWidth = this.forestImageWidth * baseScale;
 
       // Draw tiles in sequence: cloud (scrolling off) → transition (once) → forest (looping)
       // Wait for next tile boundary to start transition
@@ -159,10 +226,10 @@ export class TransitioningGround {
 
       // Draw cloud tiles up to where the transition starts
       if (transitionStartX > 0) {
-        // Clouds are still visible
+        // Clouds are still visible - use cached tile
         for (let x = wrappedOffsetX; x < Math.min(transitionStartX, canvasWidth + 2); x += cloudAdjustedWidth) {
           if (x + cloudAdjustedWidth > 0) {
-            ctx.drawImage(this.cloudImage, x, yPosition, cloudAdjustedWidth + 1, cloudAdjustedHeight);
+            ctx.drawImage(this.cachedCloudTile, x, yPosition);
           }
         }
       }
@@ -170,7 +237,7 @@ export class TransitioningGround {
       // Draw transition tile if it's in view
       const transitionEndX = transitionStartX + transitionAdjustedWidth;
       if (transitionStartX < canvasWidth + 2 && transitionEndX > 0) {
-        ctx.drawImage(this.transitionImage, transitionStartX, yPosition, transitionAdjustedWidth + 1, transitionAdjustedHeight);
+        ctx.drawImage(this.cachedTransitionTile, transitionStartX, yPosition);
       }
 
       // Draw forest tiles after the transition
@@ -184,13 +251,13 @@ export class TransitioningGround {
           const forestWrappedStart = -forestOffset;
 
           for (let x = forestWrappedStart; x < canvasWidth + 2; x += forestAdjustedWidth) {
-            ctx.drawImage(this.forestImage, x, yPosition, forestAdjustedWidth + 1, forestAdjustedHeight);
+            ctx.drawImage(this.cachedForestTile, x, yPosition);
           }
         } else {
           // Transition is still visible or just passed - draw forest tiles after it
           for (let x = forestStartX; x < canvasWidth + 2; x += forestAdjustedWidth) {
             if (x > 0) {
-              ctx.drawImage(this.forestImage, x, yPosition, forestAdjustedWidth + 1, forestAdjustedHeight);
+              ctx.drawImage(this.cachedForestTile, x, yPosition);
             }
           }
         }
