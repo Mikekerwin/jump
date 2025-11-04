@@ -43,6 +43,7 @@ export class LaserPhysics {
   private jumpsSinceUnlock: number = 0; // Counter for jumps after shooting is unlocked
   private enemyGrowthLevel: number = 0; // How many times the enemy has grown
   private lastLaserFireTime: number = 0; // Timer for evenly spaced lasers
+  private lasersSinceLock: number = 0; // Counter for enemy locking behavior at score 75+
   private centerY: number;
   private minLaserY: number;
   private enemyX: number;
@@ -102,8 +103,16 @@ export class LaserPhysics {
   /**
    * Generate a random Y position for laser spawn
    * Chaos increases every 5 points, resets at each 25-point threshold
+   * At score 75+, every 5th laser locks onto player Y position for targeting
    */
-  private generateRandomLaserY(score: number): number {
+  private generateRandomLaserY(score: number, playerY?: number): number {
+    // At score 75+, every 5th laser locks onto the player's Y position
+    if (score >= 75 && playerY !== undefined && this.lasersSinceLock >= 5) {
+      console.log(`🎯 Enemy locking onto player Y: ${playerY}`);
+      this.lasersSinceLock = 0; // Reset counter
+      return playerY; // Lock onto player's exact Y position
+    }
+
     // Calculate position within current 25-point cycle (0-24)
     const scoreInCycle = score % SCORE_PER_LASER_UNLOCK;
 
@@ -165,15 +174,18 @@ export class LaserPhysics {
 
   /**
    * Update laser count based on score
+   * NEW DIFFICULTY CURVE:
+   * Score 0-24: 3 lasers (old score 25 difficulty)
+   * Score 25-49: 4 lasers (old score 50 difficulty)
+   * Score 50+: 5 lasers (old score 75 difficulty)
    */
   updateLaserCount(score: number): void {
     this.currentScore = score; // Update score for chaos calculation
 
     const laserUnlocks = Math.floor(score / SCORE_PER_LASER_UNLOCK);
     const prevNumLasers = this.numLasers;
-    // We need N+1 lasers for N to be visible on screen.
-    // Start with 2, then add more as score increases.
-    this.numLasers = Math.min(laserUnlocks + 2, MAX_LASERS);
+    // Start with 3 lasers instead of 2 (shift difficulty curve up by 1)
+    this.numLasers = Math.min(laserUnlocks + 3, MAX_LASERS);
 
     // Add new lasers when count increases
     if (this.numLasers > prevNumLasers) {
@@ -264,6 +276,9 @@ export class LaserPhysics {
       if (inactiveLaser) {
         this.lastLaserFireTime = now; // Reset the timer only when a laser is successfully fired
 
+        // Increment laser counter for tracking locking behavior
+        this.lasersSinceLock++;
+
         // Activate the laser from the enemy's current position
         const growthScale = 1 + (this.enemyGrowthLevel * GROWTH_SCALE_PER_LEVEL);
         const currentEnemyHeight = this.ballSize * growthScale;
@@ -275,7 +290,8 @@ export class LaserPhysics {
         inactiveLaser.width = this.getNextLaserWidth();
 
         // Set up the enemy's movement to the next random position
-        const nextY = this.generateRandomLaserY(this.currentScore);
+        // Pass player Y position for potential locking behavior at score 75+
+        const nextY = this.generateRandomLaserY(this.currentScore, playerPosition.y);
         inactiveLaser.nextY = nextY;
         this.pendingTargetY = nextY;
         this.movementDelayTimer = ENEMY_MOVEMENT_DELAY;
@@ -448,6 +464,7 @@ export class LaserPhysics {
     this.lastWideLaserJumpCount = 0; // Reset wide laser tracker
     this.jumpsSinceUnlock = 0; // Reset counter on game restart
     this.enemyGrowthLevel = 0; // Reset growth on game restart
+    this.lasersSinceLock = 0; // Reset locking counter on game restart
     this.initializeLasers();
   }
 
