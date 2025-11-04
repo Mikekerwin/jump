@@ -222,3 +222,9 @@ export const HITS_PER_OUT = 20; // Hits needed to score an "out"
 // 🔴 ENEMY MOVEMENT & BEHAVIOR
 export const ENEMY_MOVE_SPEED = 0.015; // Smooth interpolation speed (0–1) - very slow for visible squash
 export const ENEMY_MOVEMENT_DELAY = 0; // No delay - start moving immediately after shooting
+
+// 🎈 ENEMY FLOATING OSCILLATION (Makes enemy look like it's floating)
+export const ENEMY_FLOAT_ENABLED = true; // Enable/disable floating effect
+export const ENEMY_FLOAT_AMPLITUDE = 3; // How many pixels up/down to oscillate (try 2-5 for subtle, 5-10 for noticeable)
+export const ENEMY_FLOAT_FREQUENCY = 0.04; // Speed of oscillation (try 0.02-0.06, lower = slower)
+export const ENEMY_FLOAT_SETTLE_OSCILLATIONS = 2; // Number of dampened oscillations after reaching target position (2-4 looks natural)

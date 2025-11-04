@@ -22,6 +22,10 @@ import {
   WIDE_LASER_WIDTH,
   WIDE_LASER_HIT_VALUE,
   GROWTH_SCALE_PER_LEVEL,
+  ENEMY_FLOAT_ENABLED,
+  ENEMY_FLOAT_AMPLITUDE,
+  ENEMY_FLOAT_FREQUENCY,
+  ENEMY_FLOAT_SETTLE_OSCILLATIONS,
 } from '../config/gameConfig';
 
 export class LaserPhysics {
@@ -38,6 +42,12 @@ export class LaserPhysics {
   private isSettling: boolean = false; // Whether enemy is in settling/oscillation mode
   private enemyScaleX: number = 1; // Current scale X for smooth interpolation
   private enemyScaleY: number = 1; // Current scale Y for smooth interpolation
+
+  // Floating oscillation state
+  private floatPhase: number = 0; // Current phase of the sine wave (0 to 2π)
+  private settlePhase: number = 0; // Phase for settle oscillations after reaching target
+  private settleAmplitude: number = 0; // Current amplitude for settle oscillations (dampens over time)
+  private isInSettleMode: boolean = false; // Whether currently doing settle oscillations
   private currentScore: number = 0; // Track current score for chaos calculation
   private lastWideLaserJumpCount: number = 0; // Track the jump count when the last wide laser was spawned
   private jumpsSinceUnlock: number = 0; // Counter for jumps after shooting is unlocked
@@ -367,6 +377,7 @@ export class LaserPhysics {
         this.targetEnemyY = this.pendingTargetY;
         this.pendingTargetY = null;
         this.isSettling = false; // Reset settling mode for new movement
+        this.isInSettleMode = false; // Reset settle oscillations when starting new movement
       }
     }
 
@@ -388,7 +399,17 @@ export class LaserPhysics {
     if (distanceToTarget < 0.5) {
       this.enemyY = this.targetEnemyY;
       this.isSettling = false;
+
+      // Start settle oscillations when reaching target
+      if (ENEMY_FLOAT_ENABLED && !this.isInSettleMode) {
+        this.isInSettleMode = true;
+        this.settlePhase = 0;
+        this.settleAmplitude = ENEMY_FLOAT_AMPLITUDE * 1.5; // Start with slightly larger amplitude
+      }
     }
+
+    // Apply floating oscillation effect
+    this.applyFloatingOscillation();
 
     // Calculate velocity for squash/stretch effect
     this.enemyVelocity = this.enemyY - previousY;
@@ -397,6 +418,47 @@ export class LaserPhysics {
     this.updateEnemyScale();
 
     return { scoreChange, wasHit, enemyHitCount };
+  }
+
+  /**
+   * Apply floating oscillation effect to enemy Y position
+   * Creates a gentle up/down bobbing motion to make the enemy look like it's floating
+   * Also adds dampened oscillations when reaching a new target position
+   */
+  private applyFloatingOscillation(): void {
+    if (!ENEMY_FLOAT_ENABLED) return;
+
+    let floatOffset = 0;
+
+    // Continuous floating oscillation (always active)
+    this.floatPhase += ENEMY_FLOAT_FREQUENCY;
+    if (this.floatPhase > Math.PI * 2) {
+      this.floatPhase -= Math.PI * 2; // Keep phase in 0-2π range
+    }
+    floatOffset = Math.sin(this.floatPhase) * ENEMY_FLOAT_AMPLITUDE;
+
+    // Add settle oscillations when in settle mode
+    if (this.isInSettleMode && this.settleAmplitude > 0.1) {
+      // Dampened oscillation after reaching target
+      this.settlePhase += ENEMY_FLOAT_FREQUENCY * 2; // Faster frequency for settle
+      const settleOscillation = Math.sin(this.settlePhase) * this.settleAmplitude;
+
+      // Dampen the amplitude over time (exponential decay)
+      this.settleAmplitude *= 0.95;
+
+      // Check if we've completed enough oscillations
+      const oscillationsCompleted = this.settlePhase / (Math.PI * 2);
+      if (oscillationsCompleted >= ENEMY_FLOAT_SETTLE_OSCILLATIONS) {
+        this.isInSettleMode = false;
+        this.settleAmplitude = 0;
+        this.settlePhase = 0;
+      }
+
+      floatOffset += settleOscillation;
+    }
+
+    // Apply the combined float offset to enemy Y position
+    this.enemyY += floatOffset;
   }
 
   /**
@@ -465,6 +527,13 @@ export class LaserPhysics {
     this.jumpsSinceUnlock = 0; // Reset counter on game restart
     this.enemyGrowthLevel = 0; // Reset growth on game restart
     this.lasersSinceLock = 0; // Reset locking counter on game restart
+
+    // Reset floating oscillation state
+    this.floatPhase = 0;
+    this.settlePhase = 0;
+    this.settleAmplitude = 0;
+    this.isInSettleMode = false;
+
     this.initializeLasers();
   }
 
