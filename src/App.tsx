@@ -131,11 +131,7 @@ const App: React.FC = () => {
     // Track if touch device to prevent mouse events from touch
     let isTouchDevice = false;
 
-    // Touch/swipe tracking for mobile fling mechanics
-    let touchStartX = 0;
-    let touchStartTime = 0;
-    let lastTouchX = 0;
-    let lastTouchY = 0;
+    // Track if currently touching/dragging the player ball
     let isTouchingPlayer = false;
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -164,32 +160,33 @@ const App: React.FC = () => {
       const touch = e.touches[0];
       const screenWidth = window.innerWidth;
       const touchX = touch.clientX;
+      const touchY = touch.clientY;
 
-      touchStartX = touchX;
-      touchStartTime = Date.now();
-      lastTouchX = touchX;
-      lastTouchY = touch.clientY;
+      // Check if touching the ball itself (not a bigger area)
+      const playerX = playerState.position.x;
+      const playerY = playerState.position.y;
+      const ballSize = dimensions.ballSize;
+      const currentScale = 1 + playerGrowthLevel * GROWTH_SCALE_PER_LEVEL;
+      const actualBallSize = ballSize * currentScale;
 
-      // Left half of screen = jump control
-      if (touchX < screenWidth / 2) {
-        // Check if touching near player position for fling control
-        const playerX = playerState.position.x;
-        const playerY = playerState.position.y;
-        const ballSize = dimensions.ballSize;
+      // Calculate distance from touch to ball center
+      const distX = Math.abs(touchX - playerX);
+      const distY = Math.abs(touchY - playerY);
+      const distanceToCenter = Math.sqrt(distX * distX + distY * distY);
 
-        // Expand hit area for easier control
-        const touchAreaSize = ballSize * 2;
-        const distX = Math.abs(touchX - playerX);
-        const distY = Math.abs(touch.clientY - playerY);
+      // Check if touching within the actual ball radius
+      const ballRadius = actualBallSize / 2;
+      const isTouchingBall = distanceToCenter <= ballRadius;
 
-        if (distX < touchAreaSize && distY < touchAreaSize) {
-          isTouchingPlayer = true;
-        }
-
+      if (isTouchingBall) {
+        // Touching the ball = X-axis control only (Y continues bouncing)
+        isTouchingPlayer = true;
+        // Don't trigger jump when touching the ball itself
+      } else if (touchX < screenWidth / 2) {
+        // Left half of screen (not touching ball) = jump
         handleJumpStart();
-      }
-      // Right half of screen = shoot control
-      else {
+      } else {
+        // Right half of screen = shoot
         handleShoot();
       }
     };
@@ -198,48 +195,27 @@ const App: React.FC = () => {
       if (!isTouchingPlayer) return;
 
       const touch = e.touches[0];
-      lastTouchX = touch.clientX;
-      lastTouchY = touch.clientY;
 
-      // Update player horizontal position based on touch drag
-      const deltaX = lastTouchX - touchStartX;
-
-      // Create a synthetic mouse event to move the player
+      // Only update X-axis - Y-axis continues its natural bounce
+      // Use the player's current Y position instead of touch Y
       const syntheticEvent = {
-        clientX: touchStartX + deltaX,
-        clientY: touch.clientY
+        clientX: touch.clientX,
+        clientY: playerState.position.y  // Keep Y at current player position
       } as MouseEvent;
 
       handleMouseMove(syntheticEvent);
     };
 
     const handleTouchEnd = () => {
-      const touchEndTime = Date.now();
-      const touchDuration = touchEndTime - touchStartTime;
-
-      // Calculate swipe velocity for fling
-      if (isTouchingPlayer && touchDuration < 300) { // Fast swipe
-        const deltaX = lastTouchX - touchStartX;
-        const velocity = Math.abs(deltaX) / touchDuration; // pixels per ms
-
-        // Apply fling based on swipe direction and speed
-        // Faster swipe = more fling (up to 200px)
-        const flingDistance = Math.min(Math.abs(deltaX) * velocity * 100, 200);
-        const flingDirection = deltaX > 0 ? 1 : -1;
-
-        console.log(`🎯 Fling! Distance: ${flingDistance}px, Direction: ${flingDirection > 0 ? 'RIGHT' : 'LEFT'}`);
-
-        // Apply fling by adjusting player position
-        const syntheticEvent = {
-          clientX: touchStartX + (flingDirection * flingDistance),
-          clientY: lastTouchY
-        } as MouseEvent;
-
-        handleMouseMove(syntheticEvent);
+      // When releasing the ball, don't trigger jump or fling
+      // The ball continues bouncing naturally and stays at its X position
+      if (isTouchingPlayer) {
+        isTouchingPlayer = false;
+        // Don't call handleJumpEnd() - we never started a jump when touching the ball
+      } else {
+        // If we were jumping (touched left side, not the ball), end the jump
+        handleJumpEnd();
       }
-
-      isTouchingPlayer = false;
-      handleJumpEnd();
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -261,7 +237,7 @@ const App: React.FC = () => {
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [handleJumpStart, handleJumpEnd, handleMouseMove, handleShoot, playerState.position, dimensions.ballSize]);
+  }, [handleJumpStart, handleJumpEnd, handleMouseMove, handleShoot, playerState.position, dimensions.ballSize, playerGrowthLevel]);
 
   return (
     <div

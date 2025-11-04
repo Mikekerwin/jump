@@ -57,7 +57,7 @@ export const PLAYER_PROJECTILE_HEIGHT = 4;
 // Player/Enemy growth system
 // Every 20 hits = 1 out = opponent grows 1 level
 // When you get an out (hit opponent 20 times), you shrink 1 level
-export const GROWTH_SCALE_PER_LEVEL = 0.50; // 50% size increase per level (experiment with this!)
+export const GROWTH_SCALE_PER_LEVEL = 0.25; // 50% size increase per level (experiment with this!)
 export const MAX_GROWTH_LEVELS = 10; // Maximum 10 levels of growth (experiment with this!)
 
 // Legacy constants (kept for compatibility)
