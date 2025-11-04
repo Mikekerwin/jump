@@ -33,9 +33,11 @@ export const Enemy = React.memo(React.forwardRef<HTMLDivElement, EnemyProps>(
     const actualSize = ballSize * growthScale;
     const growthAmount = actualSize - ballSize; // Calculate growth for centering
 
-    // Offset position to keep ball centered as it grows
+    // Offset position to keep ball centered horizontally, but maintain floor contact
     const centeredLeft = x - (growthAmount / 2);
-    const centeredTop = y - (growthAmount / 2);
+    // For Y: Move up by the full growthAmount to keep bottom edge at same floor level
+    // (when ball grows, it expands equally in all directions from center, so we compensate)
+    const centeredTop = y - growthAmount;
 
     return (
       <div

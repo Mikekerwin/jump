@@ -44,14 +44,17 @@ export const Shadow: React.FC<ShadowProps> = ({
   const shadowWidth = characterWidth * widthScale;
   const shadowHeight = 8; // Fixed short height for shadow
 
-  // Account for growth offset (Player component offsets by growthAmount/2)
+  // Account for growth offset
+  // X: Player/Enemy component offsets by growthAmount/2 horizontally
+  // Y: Player/Enemy component offsets by full growthAmount to maintain floor contact
   const growthAmount = characterWidth - baseSize;
   const centeredX = x - (growthAmount / 2);
 
   // Shadow stays on floor, positioned under character horizontally
   // Center shadow under the scaled character
   const shadowX = centeredX + (characterWidth - shadowWidth) / 2;
-  const shadowY = floorY + (characterHeight / 2) - shadowHeight / 2;
+  // Shadow Y should always be at floor level, no offset needed
+  const shadowY = floorY - shadowHeight / 2;
 
   return (
     <div

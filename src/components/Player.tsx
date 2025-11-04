@@ -23,9 +23,11 @@ export const Player = React.forwardRef<HTMLDivElement, PlayerProps>(
     const actualSize = ballSize * growthScale;
     const growthAmount = actualSize - ballSize; // Calculate growth for centering
 
-    // Offset position to keep ball centered as it grows
+    // Offset position to keep ball centered horizontally, but maintain floor contact
     const centeredLeft = position.x - (growthAmount / 2);
-    const centeredTop = position.y - (growthAmount / 2);
+    // For Y: Move up by the full growthAmount to keep bottom edge at same floor level
+    // (when ball grows, it expands equally in all directions from center, so we compensate)
+    const centeredTop = position.y - growthAmount;
 
     return (
       <div
