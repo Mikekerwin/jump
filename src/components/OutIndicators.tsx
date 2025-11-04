@@ -25,11 +25,11 @@ export const OutIndicators: React.FC<OutIndicatorsProps> = ({
     const circleNumber = index + 1;
     const isFilled = circleNumber <= outs;
 
-    // Make circles 5 and 10 larger for enemy
-    let circleSize = 10;
+    // Make circles 5 and 10 slightly larger for enemy
+    let circleSize = 5;
     if (isEnemy) {
-      if (circleNumber === 5) circleSize = 13;
-      if (circleNumber === 10) circleSize = 16;
+      if (circleNumber === 5) circleSize = 6;
+      if (circleNumber === 10) circleSize = 7;
     }
 
     return (
@@ -40,7 +40,7 @@ export const OutIndicators: React.FC<OutIndicatorsProps> = ({
           height: `${circleSize}px`,
           borderRadius: '50%',
           backgroundColor: isFilled ? color : 'transparent',
-          border: `2px solid ${color}`,
+          border: `1px solid ${color}`,
           transition: 'background-color 0.3s ease, transform 0.2s ease',
           transform: isFilled ? 'scale(1.1)' : 'scale(1)',
         }}
@@ -55,8 +55,8 @@ export const OutIndicators: React.FC<OutIndicatorsProps> = ({
         top: '100px',
         [position]: '20px',
         display: 'flex',
-        flexDirection: 'column',
-        gap: '8px',
+        flexDirection: 'row', // Changed from column to row for horizontal layout
+        gap: '4px', // Smaller gap between circles
         alignItems: 'center',
         zIndex: 100,
       }}
