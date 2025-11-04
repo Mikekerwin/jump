@@ -21,8 +21,6 @@ import {
   PLAYER_PROJECTILE_SPEED,
   PLAYER_PROJECTILE_WIDTH,
   PLAYER_PROJECTILE_HEIGHT,
-  ENEMY_WIDTH_GROWTH_PER_CYCLE,
-  ENEMY_HEIGHT_GROWTH_PER_CYCLE,
   MAX_OUTS,
   HITS_PER_OUT,
   CLOUD_SKY_IMAGE_PATH,
@@ -32,6 +30,7 @@ import {
   FOREST_GROUND_IMAGE_PATH,
   GROUND_HEIGHT_EXTENSION_PERCENT,
   MAX_GROWTH_LEVELS,
+  GROWTH_SCALE_PER_LEVEL,
   calculateResponsiveBallSize,
   calculateHorizontalRanges,
   calculateResponsiveLaserSize,
@@ -298,7 +297,8 @@ export const useGameLoop = () => {
       const laserUpdate = laserPhysicsRef.current?.update(
         scoreRef.current,
         newPlayerState?.position || { x: 0, y: 0 },
-        playerPhysicsRef.current?.hasPlayerJumped() || false
+        playerPhysicsRef.current?.hasPlayerJumped() || false,
+        playerGrowthLevelRef.current
       );
 
       if (laserUpdate && laserPhysicsRef.current) {
@@ -389,8 +389,9 @@ export const useGameLoop = () => {
 
               const newX = projectile.x + PLAYER_PROJECTILE_SPEED;
               const dims = dimensionsRef.current;
-              const currentEnemyWidth = dims.ballSize + (enemyGrowthLevelRef.current * ENEMY_WIDTH_GROWTH_PER_CYCLE);
-              const currentEnemyHeight = dims.ballSize + (enemyGrowthLevelRef.current * ENEMY_HEIGHT_GROWTH_PER_CYCLE);
+              const enemyGrowthScale = 1 + enemyGrowthLevelRef.current * GROWTH_SCALE_PER_LEVEL;
+              const currentEnemyWidth = dims.ballSize * enemyGrowthScale;
+              const currentEnemyHeight = dims.ballSize * enemyGrowthScale;
               const enemyCurrentY = laserPhysicsRef.current?.getEnemyY() || 0;
 
               const hitEnemy =

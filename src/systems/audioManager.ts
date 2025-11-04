@@ -72,6 +72,7 @@ export class AudioManager {
    * Play jump sound (only once per button press)
    */
   playJumpSound(): void {
+    if (this.isMuted) return;
     if (!this.bounceSound) {
       console.warn('⚠️ Jump sound: No audio object');
       return;
@@ -98,6 +99,7 @@ export class AudioManager {
    * Play bounce sound with volume control (for landing)
    */
   playBounce(volume: number = 1): void {
+    if (this.isMuted) return;
     if (!this.bounceSound) return;
 
     const now = performance.now();
@@ -120,6 +122,7 @@ export class AudioManager {
    * Play laser hit sound
    */
   playLaserHit(): void {
+    if (this.isMuted) return;
     if (!this.laserHitSound) return;
 
     this.laserHitSound.currentTime = 0;
@@ -185,9 +188,9 @@ export class AudioManager {
    */
   mute(): void {
     this.isMuted = true;
-    if (this.bounceSound) this.bounceSound.volume = 0;
-    if (this.laserHitSound) this.laserHitSound.volume = 0;
-    if (this.backgroundMusic) this.backgroundMusic.volume = 0;
+    if (this.bounceSound) this.bounceSound.muted = true;
+    if (this.laserHitSound) this.laserHitSound.muted = true;
+    if (this.backgroundMusic) this.backgroundMusic.muted = true;
   }
 
   /**
@@ -195,20 +198,19 @@ export class AudioManager {
    */
   unmute(): void {
     this.isMuted = false;
-    if (this.bounceSound) this.bounceSound.volume = 1;
-    if (this.laserHitSound) this.laserHitSound.volume = 1;
-    if (this.backgroundMusic) this.backgroundMusic.volume = BACKGROUND_MUSIC_VOLUME;
+    if (this.bounceSound) this.bounceSound.muted = false;
+    if (this.laserHitSound) this.laserHitSound.muted = false;
+    if (this.backgroundMusic) this.backgroundMusic.muted = false;
   }
 
   /**
    * Toggle mute state
    */
   toggleMute(): boolean {
-    if (this.isMuted) {
-      this.unmute();
-    } else {
-      this.mute();
-    }
+    this.isMuted = !this.isMuted;
+    if (this.bounceSound) this.bounceSound.muted = this.isMuted;
+    if (this.laserHitSound) this.laserHitSound.muted = this.isMuted;
+    if (this.backgroundMusic) this.backgroundMusic.muted = this.isMuted;
     return this.isMuted;
   }
 

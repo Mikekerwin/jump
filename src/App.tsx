@@ -16,6 +16,7 @@ import { SoundToggleButton } from './components/SoundToggleButton';
 import { EnergyBar } from './components/EnergyBar';
 import { Shadow } from './components/Shadow';
 import LoadingScreen from './components/LoadingScreen';
+import { OutIndicators } from './components/OutIndicators';
 import { useImagePreloader } from './hooks/useImagePreloader';
 import {
   STARS_ENABLED,
@@ -40,7 +41,7 @@ const App: React.FC = () => {
     FOREST_TREES_IMAGE_PATH
   ], []);
 
-  const { isLoading } = useImagePreloader(imagePaths, 5000); // Minimum 5 seconds
+  const { isLoading } = useImagePreloader(imagePaths, 3000); // Minimum 3 seconds
 
   const {
     score,
@@ -339,7 +340,6 @@ const App: React.FC = () => {
               }}
             >
               <div>Hit: {hitCount} / 20</div>
-              <div style={{ marginTop: '5px' }}>Outs: {playerOuts} / 10</div>
             </div>
           )}
 
@@ -358,12 +358,33 @@ const App: React.FC = () => {
               }}
             >
               <div>Hit: {enemyHits} / 20</div>
-              <div style={{ marginTop: '5px' }}>Outs: {enemyOuts} / 10</div>
             </div>
           )}
 
+          {/* Player Out Indicators */}
+          {!gameOver && (
+            <OutIndicators
+              outs={enemyOuts}
+              maxOuts={10}
+              color="#4fc3f7"
+              position="left"
+              isEnemy={false}
+            />
+          )}
+
+          {/* Enemy Out Indicators */}
+          {!gameOver && (
+            <OutIndicators
+              outs={playerOuts}
+              maxOuts={10}
+              color="red"
+              position="right"
+              isEnemy={true}
+            />
+          )}
+
           {/* Energy Bar */}
-          {!gameOver && <EnergyBar energy={energy} />}
+          {!gameOver && <EnergyBar energy={energy} score={score} />}
 
           {/* Player Shadow */}
           <Shadow

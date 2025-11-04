@@ -8,9 +8,10 @@ import React from 'react';
 
 interface EnergyBarProps {
   energy: number; // 0-100
+  score: number;
 }
 
-export const EnergyBar: React.FC<EnergyBarProps> = ({ energy }) => {
+export const EnergyBar: React.FC<EnergyBarProps> = ({ energy, score }) => {
   // Calculate color based on energy level
   const getColor = () => {
     if (energy >= 80) {
@@ -31,6 +32,7 @@ export const EnergyBar: React.FC<EnergyBarProps> = ({ energy }) => {
   };
 
   const barColor = getColor();
+  const barText = score < 100 ? 'Fill Up!' : (energy > 50 ? 'Shoot!' : 'Jump!');
 
   return (
     <div
@@ -110,7 +112,7 @@ export const EnergyBar: React.FC<EnergyBarProps> = ({ energy }) => {
             whiteSpace: 'nowrap',
           }}
         >
-          {energy >= 50 ? 'Shoot!' : 'Jump!'}
+          {barText}
         </div>
       </div>
 

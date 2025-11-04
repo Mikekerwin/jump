@@ -246,7 +246,8 @@ export class LaserPhysics {
   update(
     score: number,
     playerPosition: Position,
-    playerHasJumped: boolean
+    playerHasJumped: boolean,
+    playerGrowthLevel: number // Pass player growth level
   ): { scoreChange: number; wasHit: boolean; enemyHitCount: number } {
     this.currentScore = score; // Update score for chaos calculation
     
@@ -338,12 +339,20 @@ export class LaserPhysics {
       }
       // Check collision with player (use laser's custom width if set)
       const currentLaserWidth = laser.width || this.laserWidth;
+      const playerGrowthScale = 1 + playerGrowthLevel * GROWTH_SCALE_PER_LEVEL;
+      const currentPlayerSize = this.ballSize * playerGrowthScale;
+      const growthAmount = currentPlayerSize - this.ballSize;
+      
+      // Calculate the hitbox's true top-left corner, including all visual offsets
+      const hitboxTopY = playerPosition.y - growthAmount;
+      const hitboxLeftX = playerPosition.x - (growthAmount / 2) - 10; // Centering adjustment + 10px offset
+
       if (
         !laser.hit &&
-        playerPosition.x + this.ballSize > laser.x &&
-        playerPosition.x < laser.x + currentLaserWidth &&
-        playerPosition.y + this.ballSize > laser.y && // Player bottom vs laser top
-        playerPosition.y < laser.y + this.laserHeight // Player top vs laser bottom
+        hitboxLeftX + currentPlayerSize > laser.x && // Hitbox right edge vs laser left edge
+        hitboxLeftX < laser.x + currentLaserWidth &&   // Hitbox left edge vs laser right edge
+        hitboxTopY + currentPlayerSize > laser.y &&   // Hitbox bottom edge vs laser top edge
+        hitboxTopY < laser.y + this.laserHeight      // Hitbox top edge vs laser bottom edge
       ) {
         laser.hit = true;
         wasHit = true;

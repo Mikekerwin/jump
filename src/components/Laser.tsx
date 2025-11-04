@@ -25,6 +25,7 @@ export const Laser = React.forwardRef<HTMLDivElement, LaserProps>(
           height: `${LASER_HEIGHT}px`,
           backgroundColor: 'red',
           boxShadow: '0 0 10px red',
+          borderRadius: '50%',
           transform: `translate3d(${x}px, ${y}px, 0)`,
         }}
       />

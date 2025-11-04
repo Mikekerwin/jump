@@ -52,7 +52,7 @@ export const BALL_GROWTH_TRANSITION_DURATION = 0.65; // Duration in seconds for 
 // 🟢 PLAYER SHOOTING (UNLOCKS AT SCORE 100+)
 export const PLAYER_PROJECTILE_SPEED = 8;
 export const PLAYER_PROJECTILE_WIDTH = 15;
-export const PLAYER_PROJECTILE_HEIGHT = 4;
+export const PLAYER_PROJECTILE_HEIGHT = 3;
 
 // Player/Enemy growth system
 // Every 20 hits = 1 out = opponent grows 1 level
