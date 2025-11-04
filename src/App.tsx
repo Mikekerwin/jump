@@ -118,6 +118,8 @@ const App: React.FC = () => {
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx) return;
 
+    let animationFrameId: number;
+
     const renderLoop = () => {
       // Clear canvas
       ctx.clearRect(0, 0, dimensions.width, dimensions.height);
@@ -140,12 +142,18 @@ const App: React.FC = () => {
       transitioningGround.render(ctx, dimensions.width, dimensions.height, score);
 
       if (!gameOver) {
-        requestAnimationFrame(renderLoop);
+        animationFrameId = requestAnimationFrame(renderLoop);
       }
     };
 
-    requestAnimationFrame(renderLoop);
-  }, [backgroundStars, staticCloudSky, forestTreesBackground, transitioningGround, gradientOverlay, gameOver, dimensions, score]);
+    animationFrameId = requestAnimationFrame(renderLoop);
+
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [backgroundStars, staticCloudSky, forestTreesBackground, transitioningGround, gradientOverlay, gameOver, dimensions]);
 
   /**
    * Setup input controls
