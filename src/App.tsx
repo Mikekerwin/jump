@@ -304,6 +304,46 @@ const App: React.FC = () => {
         }}
       />
 
+      {/* Player Shadow - Always visible */}
+      <Shadow
+        x={playerState.position.x}
+        characterY={playerState.position.y}
+        floorY={dimensions.floorY}
+        characterWidth={dimensions.ballSize * (1 + playerGrowthLevel * GROWTH_SCALE_PER_LEVEL)}
+        baseSize={dimensions.ballSize}
+        growthLevel={playerGrowthLevel}
+      />
+
+      {/* Player Ball - Always visible */}
+      <Player
+        playerState={playerState}
+        isHit={wasHit}
+        growthLevel={playerGrowthLevel}
+        ballSize={dimensions.ballSize}
+      />
+
+      {/* Enemy Shadow - Always visible */}
+      <Shadow
+        x={dimensions.enemyX}
+        characterY={enemyY}
+        floorY={dimensions.floorY}
+        characterWidth={dimensions.ballSize * (1 + enemyGrowthLevel * GROWTH_SCALE_PER_LEVEL)}
+        baseSize={dimensions.ballSize}
+        growthLevel={enemyGrowthLevel}
+      />
+
+      {/* Enemy Launcher - Always visible */}
+      <Enemy
+        x={dimensions.enemyX}
+        y={enemyY}
+        scaleX={enemyScale.scaleX}
+        scaleY={enemyScale.scaleY}
+        growthLevel={enemyGrowthLevel}
+        isHit={enemyWasHit}
+        onShoot={score >= 100 ? handleShoot : undefined}
+        ballSize={dimensions.ballSize}
+      />
+
       {!gameOver && (
         <>
           {/* Test Button - Fill Energy */}
@@ -393,46 +433,6 @@ const App: React.FC = () => {
 
           {/* Energy Bar */}
           {!gameOver && <EnergyBar energy={energy} score={score} />}
-
-          {/* Player Shadow */}
-          <Shadow
-            x={playerState.position.x}
-            characterY={playerState.position.y}
-            floorY={dimensions.floorY}
-            characterWidth={dimensions.ballSize * (1 + playerGrowthLevel * GROWTH_SCALE_PER_LEVEL)}
-            baseSize={dimensions.ballSize}
-            growthLevel={playerGrowthLevel}
-          />
-
-          {/* Player Ball */}
-          <Player
-            playerState={playerState}
-            isHit={wasHit}
-            growthLevel={playerGrowthLevel}
-            ballSize={dimensions.ballSize}
-          />
-
-          {/* Enemy Shadow */}
-          <Shadow
-            x={dimensions.enemyX}
-            characterY={enemyY}
-            floorY={dimensions.floorY}
-            characterWidth={dimensions.ballSize * (1 + enemyGrowthLevel * GROWTH_SCALE_PER_LEVEL)}
-            baseSize={dimensions.ballSize}
-            growthLevel={enemyGrowthLevel}
-          />
-
-          {/* Enemy Launcher */}
-          <Enemy
-            x={dimensions.enemyX}
-            y={enemyY}
-            scaleX={enemyScale.scaleX}
-            scaleY={enemyScale.scaleY}
-            growthLevel={enemyGrowthLevel}
-            isHit={enemyWasHit}
-            onShoot={score >= 100 ? handleShoot : undefined}
-            ballSize={dimensions.ballSize}
-          />
 
           {/* Lasers */}
           {lasers.map((laser, index) => (
