@@ -23,12 +23,17 @@ export const Shadow: React.FC<ShadowProps> = ({
 }) => {
   // Character is circular, so height = width
   const characterHeight = characterWidth;
+  const growthAmount = characterWidth - baseSize;
 
-  // Simple calculation: characterY is center, so bottom = center + half height
-  const characterBottom = characterY + (characterHeight / 2);
+  // Calculate the actual rendered bottom position of the character
+  // Player/Enemy components offset Y by full growthAmount to maintain floor contact
+  // So the rendered position is: characterY - growthAmount
+  // And the bottom edge is: (characterY - growthAmount) + characterHeight
+  // Simplified: characterY + (characterHeight - growthAmount)
+  const renderedBottom = characterY + (characterHeight - growthAmount);
 
   // Calculate distance from floor (0 = on floor, positive = in air)
-  const distanceFromFloor = floorY - characterBottom;
+  const distanceFromFloor = floorY - renderedBottom;
   const maxDistance = floorY * 0.5; // Maximum distance we calculate shadow for
 
   // Normalize distance (0 = on floor, 1 = far away)
@@ -46,15 +51,13 @@ export const Shadow: React.FC<ShadowProps> = ({
 
   // Account for growth offset
   // X: Player/Enemy component offsets by growthAmount/2 horizontally
-  // Y: Player/Enemy component offsets by full growthAmount to maintain floor contact
-  const growthAmount = characterWidth - baseSize;
   const centeredX = x - (growthAmount / 2);
 
   // Shadow stays on floor, positioned under character horizontally
   // Center shadow under the scaled character
   const shadowX = centeredX + (characterWidth - shadowWidth) / 2;
-  // Shadow Y should always be at floor level, no offset needed
-  const shadowY = floorY - shadowHeight / 2;
+  // Shadow Y is positioned at the bottom of the character (where it touches ground)
+  const shadowY = renderedBottom - shadowHeight / 2;
 
   return (
     <div
