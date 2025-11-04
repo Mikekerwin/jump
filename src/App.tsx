@@ -78,6 +78,28 @@ const App: React.FC = () => {
   } = useGameLoop();
 
   /**
+   * Prevent default touch behaviors on document level (overscroll, pull-to-refresh)
+   */
+  useEffect(() => {
+    const preventDefaultTouch = (e: TouchEvent) => {
+      // Prevent default on all touches to stop overscroll and pull-to-refresh
+      if (e.touches.length > 1) {
+        // Always prevent multi-touch (pinch zoom, etc.)
+        e.preventDefault();
+      }
+    };
+
+    // Add passive: false to allow preventDefault
+    document.addEventListener('touchstart', preventDefaultTouch, { passive: false });
+    document.addEventListener('touchmove', preventDefaultTouch, { passive: false });
+
+    return () => {
+      document.removeEventListener('touchstart', preventDefaultTouch);
+      document.removeEventListener('touchmove', preventDefaultTouch);
+    };
+  }, []);
+
+  /**
    * Start forest background transition when score hits 100
    */
   useEffect(() => {
@@ -157,6 +179,9 @@ const App: React.FC = () => {
     const handleTouchStart = (e: TouchEvent) => {
       isTouchDevice = true; // Mark as touch device
 
+      // Prevent default browser behaviors (pull-to-refresh, overscroll, etc.)
+      e.preventDefault();
+
       const touch = e.touches[0];
       const screenWidth = window.innerWidth;
       const touchX = touch.clientX;
@@ -192,6 +217,9 @@ const App: React.FC = () => {
     };
 
     const handleTouchMove = (e: TouchEvent) => {
+      // Prevent default browser scrolling behavior
+      e.preventDefault();
+
       if (!isTouchingPlayer) return;
 
       const touch = e.touches[0];
