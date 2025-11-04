@@ -57,8 +57,9 @@ export const Shadow: React.FC<ShadowProps> = ({
   // Center shadow under the scaled character
   const shadowX = centeredX + (characterWidth - shadowWidth) / 2;
 
-  // Shadow ALWAYS stays on the floor (floorY), never moves up/down with character
-  const shadowY = floorY - shadowHeight / 2;
+  // Shadow positioned at floor, offset down by half the character's height
+  // This pushes shadow further down as character grows
+  const shadowY = floorY + (characterHeight / 2) - shadowHeight / 2;
 
   return (
     <div
