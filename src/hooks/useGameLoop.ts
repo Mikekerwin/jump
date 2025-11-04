@@ -356,6 +356,7 @@ export const useGameLoop = () => {
             setPlayerGrowthLevel((prevGrowth) => {
               const newGrowth = Math.min(prevGrowth + 1, MAX_GROWTH_LEVELS);
               playerGrowthLevelRef.current = newGrowth;
+              console.log(`💙 Player grew! Level: ${prevGrowth} → ${newGrowth}`);
               return newGrowth;
             });
 
@@ -364,6 +365,7 @@ export const useGameLoop = () => {
               const newGrowth = Math.max(prevGrowth - 1, 0);
               enemyGrowthLevelRef.current = newGrowth;
               laserPhysicsRef.current?.setEnemyGrowthLevel(enemyGrowthLevelRef.current);
+              console.log(`🔴 Enemy shrunk! Level: ${prevGrowth} → ${newGrowth}`);
               return newGrowth;
             });
           }
@@ -430,6 +432,7 @@ export const useGameLoop = () => {
                       const newGrowth = Math.min(prevGrowth + 1, MAX_GROWTH_LEVELS);
                       enemyGrowthLevelRef.current = newGrowth;
                       laserPhysicsRef.current?.setEnemyGrowthLevel(enemyGrowthLevelRef.current);
+                      console.log(`🔴 Enemy grew! Level: ${prevGrowth} → ${newGrowth}`);
                       return newGrowth;
                     });
 
@@ -437,6 +440,7 @@ export const useGameLoop = () => {
                     setPlayerGrowthLevel((prevGrowth) => {
                       const newGrowth = Math.max(prevGrowth - 1, 0);
                       playerGrowthLevelRef.current = newGrowth;
+                      console.log(`💙 Player shrunk! Level: ${prevGrowth} → ${newGrowth}`);
                       return newGrowth;
                     });
                   }

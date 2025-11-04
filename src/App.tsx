@@ -131,6 +131,13 @@ const App: React.FC = () => {
     // Track if touch device to prevent mouse events from touch
     let isTouchDevice = false;
 
+    // Touch/swipe tracking for mobile fling mechanics
+    let touchStartX = 0;
+    let touchStartTime = 0;
+    let lastTouchX = 0;
+    let lastTouchY = 0;
+    let isTouchingPlayer = false;
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 's' || e.key === 'S') {
         handleShoot(); // Shoot with 'S' key (score 100+)
@@ -151,11 +158,89 @@ const App: React.FC = () => {
       if (!isTouchDevice) handleMouseMove(e);
     };
 
-    const handleTouchStart = () => {
+    const handleTouchStart = (e: TouchEvent) => {
       isTouchDevice = true; // Mark as touch device
-      handleJumpStart();
+
+      const touch = e.touches[0];
+      const screenWidth = window.innerWidth;
+      const touchX = touch.clientX;
+
+      touchStartX = touchX;
+      touchStartTime = Date.now();
+      lastTouchX = touchX;
+      lastTouchY = touch.clientY;
+
+      // Left half of screen = jump control
+      if (touchX < screenWidth / 2) {
+        // Check if touching near player position for fling control
+        const playerX = playerState.position.x;
+        const playerY = playerState.position.y;
+        const ballSize = dimensions.ballSize;
+
+        // Expand hit area for easier control
+        const touchAreaSize = ballSize * 2;
+        const distX = Math.abs(touchX - playerX);
+        const distY = Math.abs(touch.clientY - playerY);
+
+        if (distX < touchAreaSize && distY < touchAreaSize) {
+          isTouchingPlayer = true;
+        }
+
+        handleJumpStart();
+      }
+      // Right half of screen = shoot control
+      else {
+        handleShoot();
+      }
     };
-    const handleTouchEnd = () => handleJumpEnd();
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!isTouchingPlayer) return;
+
+      const touch = e.touches[0];
+      lastTouchX = touch.clientX;
+      lastTouchY = touch.clientY;
+
+      // Update player horizontal position based on touch drag
+      const deltaX = lastTouchX - touchStartX;
+
+      // Create a synthetic mouse event to move the player
+      const syntheticEvent = {
+        clientX: touchStartX + deltaX,
+        clientY: touch.clientY
+      } as MouseEvent;
+
+      handleMouseMove(syntheticEvent);
+    };
+
+    const handleTouchEnd = () => {
+      const touchEndTime = Date.now();
+      const touchDuration = touchEndTime - touchStartTime;
+
+      // Calculate swipe velocity for fling
+      if (isTouchingPlayer && touchDuration < 300) { // Fast swipe
+        const deltaX = lastTouchX - touchStartX;
+        const velocity = Math.abs(deltaX) / touchDuration; // pixels per ms
+
+        // Apply fling based on swipe direction and speed
+        // Faster swipe = more fling (up to 200px)
+        const flingDistance = Math.min(Math.abs(deltaX) * velocity * 100, 200);
+        const flingDirection = deltaX > 0 ? 1 : -1;
+
+        console.log(`🎯 Fling! Distance: ${flingDistance}px, Direction: ${flingDirection > 0 ? 'RIGHT' : 'LEFT'}`);
+
+        // Apply fling by adjusting player position
+        const syntheticEvent = {
+          clientX: touchStartX + (flingDirection * flingDistance),
+          clientY: lastTouchY
+        } as MouseEvent;
+
+        handleMouseMove(syntheticEvent);
+      }
+
+      isTouchingPlayer = false;
+      handleJumpEnd();
+    };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
@@ -163,8 +248,8 @@ const App: React.FC = () => {
     window.addEventListener('mouseup', handleMouseUp);
     window.addEventListener('mousemove', handleMouseMoveWrapper);
     window.addEventListener('touchstart', handleTouchStart, { passive: false });
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
     window.addEventListener('touchend', handleTouchEnd);
-    // Note: touchmove is NOT added - on touch devices, player doesn't follow finger position
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
@@ -173,9 +258,10 @@ const App: React.FC = () => {
       window.removeEventListener('mouseup', handleMouseUp);
       window.removeEventListener('mousemove', handleMouseMoveWrapper);
       window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [handleJumpStart, handleJumpEnd, handleMouseMove, handleShoot]);
+  }, [handleJumpStart, handleJumpEnd, handleMouseMove, handleShoot, playerState.position, dimensions.ballSize]);
 
   return (
     <div
