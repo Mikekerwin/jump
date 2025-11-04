@@ -118,7 +118,6 @@ export class LaserPhysics {
   private generateRandomLaserY(score: number, playerY?: number): number {
     // At score 75+, every 5th laser locks onto the player's Y position
     if (score >= 75 && playerY !== undefined && this.lasersSinceLock >= 5) {
-      console.log(`🎯 Enemy locking onto player Y: ${playerY}`);
       this.lasersSinceLock = 0; // Reset counter
       return playerY; // Lock onto player's exact Y position
     }

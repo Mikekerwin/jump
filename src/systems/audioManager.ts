@@ -82,8 +82,9 @@ export class AudioManager {
     this.bounceSound.currentTime = 0;
     this.bounceSound.volume = 1;
     this.bounceSound.play()
-      .then(() => console.log('🔊 Jump sound played'))
-      .catch((e) => console.error('❌ Jump sound failed:', e.message));
+      .catch(() => {
+        // Jump sound playback failed (silent failure)
+      });
 
     this.hasPlayedJumpSound = true;
   }
