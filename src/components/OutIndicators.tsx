@@ -56,7 +56,7 @@ export const OutIndicators: React.FC<OutIndicatorsProps> = ({
         [position]: '20px',
         display: 'flex',
         flexDirection: 'row', // Changed from column to row for horizontal layout
-        gap: '2px', // 2px gap between circles
+        gap: '5.5px', // 5.5px gap between circles
         alignItems: 'center',
         zIndex: 100,
       }}
