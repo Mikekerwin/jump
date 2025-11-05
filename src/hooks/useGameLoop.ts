@@ -399,7 +399,7 @@ export const useGameLoop = () => {
                 const currentPlayerHits = playerHitsRef.current;
                 if (currentPlayerHits >= HITS_PER_OUT) {
                   playerHitsRef.current = currentPlayerHits % HITS_PER_OUT;
-                  setPlayerOuts(prev => {
+                  setEnemyOuts(prev => {
                     const newOuts = prev + 1;
                     if (newOuts >= MAX_OUTS) {
                       gameOverRef.current = true;
