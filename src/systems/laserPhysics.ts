@@ -187,7 +187,8 @@ export class LaserPhysics {
     score: number,
     playerPosition: Position,
     playerHasJumped: boolean,
-    playerGrowthLevel: number
+    playerGrowthLevel: number,
+    isEnemyInHoverMode: boolean = true
   ): { scoreChange: number; wasHit: boolean; enemyHitCount: number } {
     this.currentScore = score;
     this.updateLaserCount(score);
@@ -211,7 +212,8 @@ export class LaserPhysics {
 
     const now = Date.now();
 
-    if (now - this.lastLaserFireTime > fireDelay) {
+    // Only spawn lasers if enemy is in hover mode (after intro animation)
+    if (isEnemyInHoverMode && now - this.lastLaserFireTime > fireDelay) {
       const inactiveLaser = this.lasers.find(l => l.x < -this.laserWidth);
       if (inactiveLaser) {
         this.lastLaserFireTime = now;

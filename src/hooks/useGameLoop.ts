@@ -324,7 +324,8 @@ export const useGameLoop = () => {
         scoreRef.current,
         newPlayerState?.position || { x: 0, y: 0 },
         playerPhysicsRef.current?.hasPlayerJumped() || false,
-        playerGrowthLevelRef.current
+        playerGrowthLevelRef.current,
+        enemyPhysicsRef.current?.isHoverMode() || false
       );
 
       if (laserUpdate && laserPhysicsRef.current) {
