@@ -134,9 +134,10 @@ export class LaserPhysics {
     const firstLaserY = this.centerY;
     const nextLaserY = this.generateRandomLaserY(0);
 
+    // Initialize lasers off-screen so they're not visible during intro animation
     this.lasers = [
       {
-        x: this.getInitialLaserX(),
+        x: -this.laserWidth - 100,
         y: firstLaserY,
         hit: false,
         scored: false,
@@ -235,46 +236,49 @@ export class LaserPhysics {
     }
 
     this.lasers.forEach((laser, laserIndex) => {
-      laser.x -= currentSpeed;
+      // Only move and process lasers if enemy is in hover mode
+      if (isEnemyInHoverMode) {
+        laser.x -= currentSpeed;
 
-      if (!laser.hit && !laser.passed && playerPosition.x > laser.x + this.laserWidth) {
-        laser.passed = true;
-        laser.scored = true;
-        if (playerHasJumped) {
-          scoreChange += 1;
-          if (this.currentScore >= WIDE_LASER_UNLOCK_SCORE) {
-            this.jumpsSinceUnlock++;
+        if (!laser.hit && !laser.passed && playerPosition.x > laser.x + this.laserWidth) {
+          laser.passed = true;
+          laser.scored = true;
+          if (playerHasJumped) {
+            scoreChange += 1;
+            if (this.currentScore >= WIDE_LASER_UNLOCK_SCORE) {
+              this.jumpsSinceUnlock++;
+            }
           }
         }
-      }
 
-      const laserWidth = laser.width || this.laserWidth;
-      if (laser.x + laserWidth < -this.laserWidth) {
-        // Laser is inactive
-      }
-
-      const currentLaserWidth = laser.width || this.laserWidth;
-      const playerGrowthScale = 1 + playerGrowthLevel * GROWTH_SCALE_PER_LEVEL;
-      const currentPlayerSize = this.ballSize * playerGrowthScale;
-      const growthAmount = currentPlayerSize - this.ballSize;
-      const hitboxTopY = playerPosition.y - growthAmount;
-      const hitboxLeftX = playerPosition.x - (growthAmount / 2) - 10;
-
-      if (
-        !laser.hit &&
-        hitboxLeftX + currentPlayerSize > laser.x &&
-        hitboxLeftX < laser.x + currentLaserWidth &&
-        hitboxTopY + currentPlayerSize > laser.y &&
-        hitboxTopY < laser.y + this.laserHeight
-      ) {
-        laser.hit = true;
-        wasHit = true;
-        if (!hitRegisteredThisFrame) {
-          const hitValue = laser.width === WIDE_LASER_WIDTH ? WIDE_LASER_HIT_VALUE : 1;
-          enemyHitCount += hitValue;
-          hitRegisteredThisFrame = true;
+        const laserWidth = laser.width || this.laserWidth;
+        if (laser.x + laserWidth < -this.laserWidth) {
+          // Laser is inactive
         }
-        laser.x = -1000;
+
+        const currentLaserWidth = laser.width || this.laserWidth;
+        const playerGrowthScale = 1 + playerGrowthLevel * GROWTH_SCALE_PER_LEVEL;
+        const currentPlayerSize = this.ballSize * playerGrowthScale;
+        const growthAmount = currentPlayerSize - this.ballSize;
+        const hitboxTopY = playerPosition.y - growthAmount;
+        const hitboxLeftX = playerPosition.x - (growthAmount / 2) - 10;
+
+        if (
+          !laser.hit &&
+          hitboxLeftX + currentPlayerSize > laser.x &&
+          hitboxLeftX < laser.x + currentLaserWidth &&
+          hitboxTopY + currentPlayerSize > laser.y &&
+          hitboxTopY < laser.y + this.laserHeight
+        ) {
+          laser.hit = true;
+          wasHit = true;
+          if (!hitRegisteredThisFrame) {
+            const hitValue = laser.width === WIDE_LASER_WIDTH ? WIDE_LASER_HIT_VALUE : 1;
+            enemyHitCount += hitValue;
+            hitRegisteredThisFrame = true;
+          }
+          laser.x = -1000;
+        }
       }
     });
 
