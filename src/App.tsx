@@ -412,7 +412,7 @@ const App: React.FC = () => {
           {/* Player Out Indicators */}
           {!gameOver && (
             <OutIndicators
-              outs={enemyOuts}
+              outs={playerOuts}
               maxOuts={10}
               color="#4fc3f7"
               position="left"
@@ -423,7 +423,7 @@ const App: React.FC = () => {
           {/* Enemy Out Indicators */}
           {!gameOver && (
             <OutIndicators
-              outs={playerOuts}
+              outs={enemyOuts}
               maxOuts={10}
               color="red"
               position="right"
