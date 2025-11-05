@@ -394,13 +394,13 @@ export const useGameLoop = () => {
                 projectile.y < enemyCurrentY + currentEnemyHeight;
 
               if (hitEnemy && !projectile.hasHitEnemy) {
-                projectile.hasHitEnemy = true;
                 setEnemyWasHit(true);
                 setTimeout(() => setEnemyWasHit(false), 250);
                 audioManagerRef.current?.playLaserHit();
 
                 if (!hitRegisteredThisFrame) {
                   playerHitsRef.current += 1;
+                  setHitCount(playerHitsRef.current);
                   const currentPlayerHits = playerHitsRef.current;
                   if (currentPlayerHits >= HITS_PER_OUT) {
                     playerHitsRef.current = currentPlayerHits % HITS_PER_OUT;
@@ -420,10 +420,9 @@ export const useGameLoop = () => {
                     });
                     setPlayerGrowthLevel(prev => Math.min(prev + 1, MAX_GROWTH_LEVELS));
                   }
-                  setHitCount(playerHitsRef.current);
                   hitRegisteredThisFrame = true;
                 }
-                return { ...projectile, x: -1000, active: false };
+                return { ...projectile, x: -1000, active: false, hasHitEnemy: true };
               }
 
               if (newX > dims.width) return { ...projectile, active: false };
