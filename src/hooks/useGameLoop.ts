@@ -220,6 +220,10 @@ export const useGameLoop = () => {
   }, [enemyGrowthLevel]);
 
   useEffect(() => {
+    playerGrowthLevelRef.current = playerGrowthLevel;
+  }, [playerGrowthLevel]);
+
+  useEffect(() => {
     energyRef.current = energy;
   }, [energy]);
 
