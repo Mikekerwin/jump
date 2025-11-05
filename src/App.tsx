@@ -1,6 +1,16 @@
 /**
  * Jump - A Reaction-Based Jumping Game
  * Main application component
+ *
+ * STABLE VERSION - Working Features:
+ * - Intro animation with 3-jump sequence for enemy (no lasers during intro)
+ * - Fixed hit/out scoring system (20 hits = 1 out)
+ * - Fixed hit counter display (shows 19/20 then resets to 0/20)
+ * - Handicap scaling: Getting an out makes YOU grow, opponent shrinks
+ * - Out indicators on correct sides (player outs on left, enemy outs on right)
+ * - Blue player projectiles properly count as 1 hit each
+ * - Enemy lasers disabled until hover mode (after intro animation)
+ * - No collision detection during intro animation
  */
 
 import React, { useEffect, useRef, useMemo } from 'react';
