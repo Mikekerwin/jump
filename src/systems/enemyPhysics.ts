@@ -32,6 +32,15 @@ export class EnemyPhysics {
   private descendingTimer: number = 0; // Timer for delay before transitioning to hover
   private hasStartedDescending: boolean = false; // Track if we've started falling
 
+  // Bounce mode state (for 4th, 7th, 10th outs)
+  private bounceModeActive: boolean = false;
+  private bounceWaitTimer: number = 0;
+  private nextBounceWaitTime: number = 0;
+  private bounceModeJumpCount: number = 0; // Track jumps during bounce mode
+
+  // Intro animation state (prevents lasers during initial intro only)
+  private hasCompletedIntroAnimation: boolean = false;
+
   constructor(initialX: number, initialY: number, centerY: number, gravity: number, boost: number, holdBoost: number, energyLoss: number, maxHoldTime: number, minBounceVelocity: number) {
     this.centerY = centerY;
     this.gravity = gravity;
@@ -70,6 +79,8 @@ export class EnemyPhysics {
    */
   enableHoverMode(): number {
     this.isPhysicsEnabled = false;
+    this.bounceModeActive = false; // Stop bounce mode when returning to hover
+    this.hasCompletedIntroAnimation = true; // Mark intro as complete (allows laser firing)
     return this.enemyState.velocity;
   }
 
@@ -78,6 +89,41 @@ export class EnemyPhysics {
    */
   enablePhysicsMode(): void {
     this.isPhysicsEnabled = true;
+  }
+
+  /**
+   * Enable physics mode with initial position and velocity
+   * Used for smooth hover → gravity transition (4th, 7th, 10th outs)
+   * Mirrors the gravity → hover transition in enableHoverMode()
+   */
+  enablePhysicsModeWithState(currentY: number, initialVelocity: number = 0): void {
+    this.isPhysicsEnabled = true;
+    this.enemyState.position.y = currentY;
+    this.enemyState.velocity = initialVelocity;
+    // Start bounce mode (random bouncing)
+    this.bounceModeActive = true;
+    this.bounceWaitTimer = 0;
+    this.nextBounceWaitTime = this.getRandomWaitTime();
+    this.bounceModeJumpCount = 0; // Reset jump counter
+  }
+
+  /**
+   * Get random wait time between bounces (0-1000ms)
+   */
+  private getRandomWaitTime(): number {
+    return Math.random() * 1000;
+  }
+
+  /**
+   * Get random jump height (small, medium, or large)
+   */
+  private getRandomJumpHeight(): number {
+    const heights = [
+      INTRO_BOUNCE_1_HOLD_TIME,  // Small: 0ms
+      INTRO_BOUNCE_2_HOLD_TIME,  // Medium: 400ms
+      INTRO_BOUNCE_3_HOLD_TIME,  // Large: 1275ms
+    ];
+    return heights[Math.floor(Math.random() * heights.length)];
   }
 
   /**
@@ -101,6 +147,20 @@ export class EnemyPhysics {
    */
   isHoverMode(): boolean {
     return !this.isPhysicsEnabled;
+  }
+
+  /**
+   * Check if enemy is in bounce mode (random bouncing)
+   */
+  isBounceModeActive(): boolean {
+    return this.bounceModeActive;
+  }
+
+  /**
+   * Check if enemy has completed intro animation (used to enable laser firing)
+   */
+  hasCompletedIntro(): boolean {
+    return this.hasCompletedIntroAnimation;
   }
 
   /**
@@ -195,6 +255,35 @@ export class EnemyPhysics {
         if (this.descendingTimer >= 100) { // 100ms delay
           this.jumpSequenceActive = false;
           // Mark as ready for transition but don't disable physics yet
+        }
+      }
+    }
+
+    // Handle bounce mode (random bouncing on 4th, 7th, 10th outs)
+    if (this.bounceModeActive) {
+      const isOnGround = this.enemyState.position.y >= this.centerY - 1 && Math.abs(this.enemyState.velocity) < 0.5;
+
+      if (isOnGround) {
+        this.bounceWaitTimer += 16.67; // Assume 60 FPS (~16.67ms per frame)
+
+        // After waiting, execute a random jump
+        if (this.bounceWaitTimer >= this.nextBounceWaitTime) {
+          this.bounceModeJumpCount++;
+
+          // After 4 jumps, do one final jump and mark as ready to return to hover
+          if (this.bounceModeJumpCount >= 4) {
+            // Do a large final jump (like intro animation's 3rd jump)
+            this.startJumpWithHold(INTRO_BOUNCE_3_HOLD_TIME);
+            this.bounceModeActive = false; // Stop bounce mode
+            // The game loop will detect velocity at peak and switch to hover
+          } else {
+            // Random jump (1-3 jumps)
+            const jumpHeight = this.getRandomJumpHeight();
+            this.startJumpWithHold(jumpHeight);
+          }
+
+          this.bounceWaitTimer = 0;
+          this.nextBounceWaitTime = this.getRandomWaitTime();
         }
       }
     }
@@ -332,5 +421,9 @@ export class EnemyPhysics {
     this.jumpSequenceStep = 0;
     this.descendingTimer = 0;
     this.hasStartedDescending = false;
+    this.bounceModeActive = false;
+    this.bounceWaitTimer = 0;
+    this.nextBounceWaitTime = 0;
+    this.hasCompletedIntroAnimation = false; // Reset intro flag for new game
   }
 }

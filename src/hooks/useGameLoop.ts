@@ -8,6 +8,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { PlayerPhysics } from '../systems/playerPhysics';
 import { LaserPhysics } from '../systems/laserPhysics';
 import { EnemyPhysics } from '../systems/enemyPhysics';
+import { EnemyMovement } from '../systems/enemyMovement';
 import { AudioManager, setupAudioUnlock } from '../systems/audioManager';
 import { BackgroundStars } from '../systems/backgroundStars';
 import { StaticBackground } from '../systems/staticBackground';
@@ -84,10 +85,17 @@ export const useGameLoop = () => {
   const [shootGameOver, setShootGameOver] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
 
+  // Enemy bounce mode state (for 4th, 7th, 10th outs)
+  const [enemyInBounceMode, setEnemyInBounceMode] = useState(false);
+  const [isTenthOut, setIsTenthOut] = useState(false);
+  const enemyInBounceModeRef = useRef(false);
+  const isTenthOutRef = useRef(false);
+
   // Game systems
   const playerPhysicsRef = useRef<PlayerPhysics | null>(null);
   const laserPhysicsRef = useRef<LaserPhysics | null>(null);
   const enemyPhysicsRef = useRef<EnemyPhysics | null>(null);
+  const enemyMovementRef = useRef<EnemyMovement | null>(null);
   const audioManagerRef = useRef<AudioManager | null>(null);
   const backgroundStarsRef = useRef<BackgroundStars | null>(null);
   const staticCloudSkyRef = useRef<StaticBackground | null>(null);
@@ -181,6 +189,9 @@ export const useGameLoop = () => {
       0.5 // minBounceVelocity
     );
 
+    // Initialize enemy movement for hover mode
+    enemyMovementRef.current = new EnemyMovement(dims.centerY);
+
     // Start intro animation 2 seconds after game initializes
     setTimeout(() => {
       if (!introAnimationStartedRef.current && enemyPhysicsRef.current) {
@@ -200,7 +211,7 @@ export const useGameLoop = () => {
 
     setPlayerState(playerPhysicsRef.current.getState());
     setLasers(laserPhysicsRef.current.getLasers());
-    setEnemyY(laserPhysicsRef.current.getEnemyY());
+    setEnemyY(dims.centerY);
 
     return () => {
       cleanupAudio();
@@ -226,6 +237,14 @@ export const useGameLoop = () => {
   useEffect(() => {
     energyRef.current = energy;
   }, [energy]);
+
+  useEffect(() => {
+    enemyInBounceModeRef.current = enemyInBounceMode;
+  }, [enemyInBounceMode]);
+
+  useEffect(() => {
+    isTenthOutRef.current = isTenthOut;
+  }, [isTenthOut]);
 
   useEffect(() => {
     canShootRef.current = canShoot;
@@ -292,20 +311,48 @@ export const useGameLoop = () => {
         }
       }
 
-      // Update enemy physics during intro animation
+      // Update enemy physics during intro animation or bounce mode
       if (enemyPhysicsRef.current && !enemyPhysicsRef.current.isHoverMode()) {
+        console.log('[UPDATE] Using EnemyPhysics (bounce/intro mode)');
         const enemyState = enemyPhysicsRef.current.update();
 
-        // Check if enemy is ready to transition to hover
-        if (enemyPhysicsRef.current.isReadyForHover()) {
+        // Check if enemy is ready to transition to hover (after intro animation ONLY, not during bounce mode)
+        if (enemyPhysicsRef.current.isReadyForHover() && !enemyInBounceModeRef.current) {
           const velocity = enemyPhysicsRef.current.enableHoverMode();
           const currentY = enemyPhysicsRef.current.getY();
-          laserPhysicsRef.current?.startHoverWithVelocity(velocity, currentY);
+          enemyMovementRef.current?.startTransition(velocity, currentY);
+        }
+
+        // On 10th out: disable enemy when it hits the ground (no bounce, no shoot)
+        if (isTenthOutRef.current &&
+            enemyState.position.y >= dimensionsRef.current.centerY - 1 &&
+            Math.abs(enemyState.velocity) < 1) {
+          enemyPhysicsRef.current.disable();
+        }
+
+        // Check if enemy should exit bounce mode (after 4 jumps complete, on 5th jump at peak)
+        // Skip this check on 10th out (enemy never returns to hover)
+        // EnemyPhysics sets bounceModeActive=false after 4 jumps, we detect that here
+        if (!isTenthOutRef.current &&
+            enemyInBounceModeRef.current &&
+            !enemyPhysicsRef.current.isBounceModeActive() &&
+            enemyState.velocity < 0 &&
+            enemyState.velocity > -2) { // Near the peak (just started falling)
+          setEnemyInBounceMode(false);
+          const velocity = enemyPhysicsRef.current.enableHoverMode();
+          const currentY = enemyPhysicsRef.current.getY();
+          enemyMovementRef.current?.startTransition(velocity, currentY);
         }
 
         // Update enemy Y position and scale from physics
         setEnemyY(enemyState.position.y);
         setEnemyScale({ scaleX: enemyState.scaleX, scaleY: enemyState.scaleY });
+      } else if (enemyMovementRef.current && enemyPhysicsRef.current?.isHoverMode()) {
+        // Update enemy movement system (hover mode)
+        console.log('[UPDATE] Using EnemyMovement (hover mode)');
+        enemyMovementRef.current.update();
+        setEnemyY(enemyMovementRef.current.getCurrentY());
+        setEnemyScale(enemyMovementRef.current.getScale());
       }
 
       setAnimatedPlayerGrowthLevel(prev => {
@@ -320,12 +367,20 @@ export const useGameLoop = () => {
         return Math.abs(diff) < 0.01 ? target : prev + diff * 0.1;
       });
 
+      // Get enemy Y from correct source (hover = EnemyMovement, physics = EnemyPhysics)
+      const currentEnemyY = enemyPhysicsRef.current?.isHoverMode()
+        ? (enemyMovementRef.current?.getCurrentY() || dimensionsRef.current.centerY)
+        : (enemyPhysicsRef.current?.getY() || dimensionsRef.current.centerY);
+
       const laserUpdate = laserPhysicsRef.current?.update(
         scoreRef.current,
         newPlayerState?.position || { x: 0, y: 0 },
+        currentEnemyY, // Pass enemy Y to LaserPhysics
         playerPhysicsRef.current?.hasPlayerJumped() || false,
         playerGrowthLevelRef.current,
-        enemyPhysicsRef.current?.isHoverMode() || false
+        enemyPhysicsRef.current?.isHoverMode() || false,
+        enemyPhysicsRef.current?.isEnemyDisabled() || false,
+        enemyPhysicsRef.current?.hasCompletedIntro() || false
       );
 
       if (laserUpdate && laserPhysicsRef.current) {
@@ -370,12 +425,11 @@ export const useGameLoop = () => {
           setEnemyHits(enemyHitsRef.current);
         }
 
-        // Only update enemyY from LaserPhysics if we're in hover mode
-        // (during intro animation, EnemyPhysics controls the position)
-        if (enemyPhysicsRef.current?.isHoverMode()) {
-          setEnemyY(laserPhysicsRef.current.getEnemyY());
-          setEnemyScale(laserPhysicsRef.current.getEnemyScale());
+        // If laser fired in hover mode, tell EnemyMovement the new target
+        if (laserUpdate.laserFired && laserUpdate.targetY !== null && enemyPhysicsRef.current?.isHoverMode()) {
+          enemyMovementRef.current?.setTarget(laserUpdate.targetY);
         }
+
         setLasers(laserPhysicsRef.current.getLasers());
       }
 
@@ -390,7 +444,10 @@ export const useGameLoop = () => {
               const enemyGrowthScale = 1 + enemyGrowthLevelRef.current * GROWTH_SCALE_PER_LEVEL;
               const currentEnemyWidth = dims.ballSize * enemyGrowthScale;
               const currentEnemyHeight = dims.ballSize * enemyGrowthScale;
-              const enemyCurrentY = laserPhysicsRef.current?.getEnemyY() || 0;
+              // Use correct Y position source based on enemy mode (hover vs physics/bounce)
+              const enemyCurrentY = enemyPhysicsRef.current?.isHoverMode()
+                ? (enemyMovementRef.current?.getCurrentY() || 0)
+                : (enemyPhysicsRef.current?.getY() || 0);
 
               const hitEnemy =
                 newX + PLAYER_PROJECTILE_WIDTH > dims.enemyX &&
@@ -410,11 +467,36 @@ export const useGameLoop = () => {
                     playerHitsRef.current = currentPlayerHits % HITS_PER_OUT;
                     setEnemyOuts(prev => {
                       const newOuts = prev + 1;
-                      if (newOuts >= MAX_OUTS) {
+                      console.log(`[DEBUG] Enemy outs: ${newOuts}`);
+
+                      // Check if this is a bounce mode out (4th, 7th, or 10th)
+                      if (newOuts === 4 || newOuts === 7 || newOuts === 10) {
+                        console.log(`[BOUNCE MODE] Triggering bounce mode for out #${newOuts}`);
+                        console.log(`[BOUNCE MODE] Before - isHoverMode: ${enemyPhysicsRef.current?.isHoverMode()}`);
+
+                        setEnemyInBounceMode(true);
+
+                        // Transfer state from hover to physics (smooth transition)
+                        const currentY = enemyMovementRef.current?.getCurrentY() || dimensionsRef.current.centerY;
+                        const initialVelocity = -1; // Small downward velocity to start falling smoothly
+                        console.log(`[BOUNCE MODE] Calling enablePhysicsModeWithState(${currentY}, ${initialVelocity})`);
+                        enemyPhysicsRef.current?.enablePhysicsModeWithState(currentY, initialVelocity);
+                        console.log(`[BOUNCE MODE] After - isHoverMode: ${enemyPhysicsRef.current?.isHoverMode()}`);
+
+                        // On 10th out, mark special state and disable enemy
+                        if (newOuts >= MAX_OUTS) {
+                          setIsTenthOut(true);
+                          gameOverRef.current = true;
+                          setShootGameOver(true);
+                          // Don't set setGameOver(true) - we want to prevent the game over screen
+                          // Enemy will fall but not bounce, and won't shoot
+                        }
+                      } else if (newOuts >= MAX_OUTS) {
                         gameOverRef.current = true;
                         setShootGameOver(true);
                         setGameOver(true);
                       }
+
                       return Math.min(newOuts, MAX_OUTS);
                     });
                     setEnemyGrowthLevel(prev => {
@@ -438,11 +520,6 @@ export const useGameLoop = () => {
       }
 
       laserPhysicsRef.current?.setEnemyGrowthLevel(enemyGrowthLevelRef.current);
-      // Only update enemy scale from LaserPhysics if in hover mode
-      if (enemyPhysicsRef.current?.isHoverMode()) {
-        const newScale = laserPhysicsRef.current?.getEnemyScale() || { scaleX: 1, scaleY: 1 };
-        setEnemyScale(newScale);
-      }
 
       if (scoreRef.current < 0) {
         gameOverRef.current = true;
@@ -537,13 +614,14 @@ export const useGameLoop = () => {
     playerPhysicsRef.current?.reset(dims.playerStartX, dims.centerY);
     laserPhysicsRef.current?.reset();
     enemyPhysicsRef.current?.reset(dims.centerY);
+    enemyMovementRef.current?.reset(dims.centerY);
     introAnimationStartedRef.current = false; // Allow intro animation to play again
     backgroundStarsRef.current?.reset();
     forestTreesBackgroundRef.current?.reset();
     transitioningGroundRef.current?.reset();
     setPlayerState(playerPhysicsRef.current?.getState() || playerState);
     setLasers(laserPhysicsRef.current?.getLasers() || []);
-    setEnemyY(laserPhysicsRef.current?.getEnemyY() || dims.centerY);
+    setEnemyY(dims.centerY);
     setNumLasers(1);
     setGameOver(false);
     setWasHit(false);

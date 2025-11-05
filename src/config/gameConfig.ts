@@ -237,3 +237,6 @@ export const ENEMY_FLOAT_ENABLED = true; // Enable/disable floating effect
 export const ENEMY_FLOAT_AMPLITUDE = 3; // How many pixels up/down to oscillate (try 2-5 for subtle, 5-10 for noticeable)
 export const ENEMY_FLOAT_FREQUENCY = 0.04; // Speed of oscillation (try 0.02-0.06, lower = slower)
 export const ENEMY_FLOAT_SETTLE_OSCILLATIONS = 2; // Number of dampened oscillations after reaching target position (2-4 looks natural)
+
+// 🎯 ENEMY BOUNCE MODE (4th, 7th, 10th outs)
+export const BOUNCE_MODE_LASER_THRESHOLD = 5; // Number of enemy lasers before returning to hover mode
