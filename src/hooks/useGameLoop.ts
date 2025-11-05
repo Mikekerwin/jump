@@ -376,16 +376,17 @@ export const useGameLoop = () => {
 
       if (canShootRef.current) {
         let enemyHitThisFrame = false;
-        setPlayerProjectiles(prev =>
-          prev
+        setPlayerProjectiles(prev => {
+          const dims = dimensionsRef.current;
+          const enemyGrowthScale = 1 + enemyGrowthLevelRef.current * GROWTH_SCALE_PER_LEVEL;
+          const currentEnemyWidth = dims.ballSize * enemyGrowthScale;
+          const currentEnemyHeight = dims.ballSize * enemyGrowthScale;
+          const enemyCurrentY = laserPhysicsRef.current?.getEnemyY() || 0;
+
+          return prev
             .map(projectile => {
               if (!projectile.active) return projectile;
               const newX = projectile.x + PLAYER_PROJECTILE_SPEED;
-              const dims = dimensionsRef.current;
-              const enemyGrowthScale = 1 + enemyGrowthLevelRef.current * GROWTH_SCALE_PER_LEVEL;
-              const currentEnemyWidth = dims.ballSize * enemyGrowthScale;
-              const currentEnemyHeight = dims.ballSize * enemyGrowthScale;
-              const enemyCurrentY = laserPhysicsRef.current?.getEnemyY() || 0;
 
               const hitEnemy =
                 newX + PLAYER_PROJECTILE_WIDTH > dims.enemyX &&
@@ -394,6 +395,7 @@ export const useGameLoop = () => {
                 projectile.y < enemyCurrentY + currentEnemyHeight;
 
               if (hitEnemy && !projectile.hasHitEnemy && !enemyHitThisFrame) {
+                console.log('HIT! projectile:', projectile, 'hasHitEnemy:', projectile.hasHitEnemy, 'enemyHitThisFrame:', enemyHitThisFrame);
                 enemyHitThisFrame = true;
                 playerHitsRef.current += 1;
                 const currentPlayerHits = playerHitsRef.current;
@@ -425,8 +427,8 @@ export const useGameLoop = () => {
               if (newX > dims.width) return { ...projectile, active: false };
               return { ...projectile, x: newX };
             })
-            .filter(p => p.active)
-        );
+            .filter(p => p.active);
+        });
       }
 
       laserPhysicsRef.current?.setEnemyGrowthLevel(enemyGrowthLevelRef.current);
