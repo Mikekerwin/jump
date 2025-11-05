@@ -101,6 +101,7 @@ export const useGameLoop = () => {
   const gameOverRef = useRef(false);
   const playerHitsRef = useRef(0);
   const enemyHitsRef = useRef(0);
+  const hitProjectilesRef = useRef<Set<PlayerProjectile>>(new Set());
 
   const calculateDimensions = () => {
     const width = window.innerWidth;
@@ -375,15 +376,15 @@ export const useGameLoop = () => {
       }
 
       if (canShootRef.current) {
-        let enemyHitThisFrame = false;
         setPlayerProjectiles(prev => {
           const dims = dimensionsRef.current;
           const enemyGrowthScale = 1 + enemyGrowthLevelRef.current * GROWTH_SCALE_PER_LEVEL;
           const currentEnemyWidth = dims.ballSize * enemyGrowthScale;
           const currentEnemyHeight = dims.ballSize * enemyGrowthScale;
           const enemyCurrentY = laserPhysicsRef.current?.getEnemyY() || 0;
+          const newHitProjectiles = new Set<PlayerProjectile>();
 
-          return prev
+          const result = prev
             .map(projectile => {
               if (!projectile.active) return projectile;
               const newX = projectile.x + PLAYER_PROJECTILE_SPEED;
@@ -394,9 +395,12 @@ export const useGameLoop = () => {
                 projectile.y + PLAYER_PROJECTILE_HEIGHT > enemyCurrentY &&
                 projectile.y < enemyCurrentY + currentEnemyHeight;
 
-              if (hitEnemy && !projectile.hasHitEnemy && !enemyHitThisFrame) {
-                console.log('HIT! projectile:', projectile, 'hasHitEnemy:', projectile.hasHitEnemy, 'enemyHitThisFrame:', enemyHitThisFrame);
-                enemyHitThisFrame = true;
+              // Check if this specific projectile has already been counted as a hit
+              if (hitEnemy && !hitProjectilesRef.current.has(projectile)) {
+                // Mark this projectile as having hit
+                hitProjectilesRef.current.add(projectile);
+                newHitProjectiles.add(projectile);
+
                 playerHitsRef.current += 1;
                 const currentPlayerHits = playerHitsRef.current;
                 if (currentPlayerHits >= HITS_PER_OUT) {
@@ -415,7 +419,7 @@ export const useGameLoop = () => {
                     laserPhysicsRef.current?.setEnemyGrowthLevel(newGrowth);
                     return newGrowth;
                   });
-                  setPlayerGrowthLevel(prev => Math.max(prev - 1, 0));
+                  setPlayerGrowthLevel(prev => Math.min(prev + 1, MAX_GROWTH_LEVELS));
                 }
                 setHitCount(playerHitsRef.current);
                 setEnemyWasHit(true);
@@ -424,10 +428,22 @@ export const useGameLoop = () => {
                 return { ...projectile, active: false, hasHitEnemy: true };
               }
 
-              if (newX > dims.width) return { ...projectile, active: false };
+              if (newX > dims.width) {
+                // Clean up this projectile from the hit tracking set
+                hitProjectilesRef.current.delete(projectile);
+                return { ...projectile, active: false };
+              }
               return { ...projectile, x: newX };
             })
-            .filter(p => p.active);
+            .filter(p => {
+              if (!p.active) {
+                // Clean up inactive projectiles from the hit tracking set
+                hitProjectilesRef.current.delete(p);
+              }
+              return p.active;
+            });
+
+          return result;
         });
       }
 
