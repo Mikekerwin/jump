@@ -404,7 +404,6 @@ export const useGameLoop = () => {
 
                 if (!hitRegisteredThisFrame) {
                   playerHitsRef.current += 1;
-                  setHitCount(playerHitsRef.current);
                   const currentPlayerHits = playerHitsRef.current;
                   if (currentPlayerHits >= HITS_PER_OUT) {
                     playerHitsRef.current = currentPlayerHits % HITS_PER_OUT;
@@ -424,6 +423,7 @@ export const useGameLoop = () => {
                     });
                     setPlayerGrowthLevel(prev => Math.max(prev - 1, 0));
                   }
+                  setHitCount(playerHitsRef.current);
                   hitRegisteredThisFrame = true;
                 }
                 return { ...projectile, x: -1000, active: false, hasHitEnemy: true };
