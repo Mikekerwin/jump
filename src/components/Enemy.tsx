@@ -21,22 +21,18 @@ interface EnemyProps {
 export const Enemy = React.memo(React.forwardRef<HTMLDivElement, EnemyProps>(
   ({ x, y, scaleX = 1, scaleY = 1, growthLevel = 0, isHit = false, onShoot, ballSize = 80 }, ref) => {
     const handleInteraction = (e: React.MouseEvent | React.TouchEvent) => {
-      e.preventDefault(); // Prevent default action
-      e.stopPropagation(); // Prevent bubbling to window listeners (stops jump)
+      e.preventDefault();
+      e.stopPropagation();
       if (onShoot) {
         onShoot();
       }
     };
 
-    // Calculate actual size based on growth level using scale multiplier
-    const growthScale = 1 + (growthLevel * GROWTH_SCALE_PER_LEVEL); // 1.0, 1.1, 1.2, 1.3, etc
+    const growthScale = 1 + (growthLevel * GROWTH_SCALE_PER_LEVEL);
     const actualSize = ballSize * growthScale;
-    const growthAmount = actualSize - ballSize; // Calculate growth for centering
+    const growthAmount = actualSize - ballSize;
 
-    // Offset position to keep ball centered horizontally, but maintain floor contact
     const centeredLeft = x - (growthAmount / 2);
-    // For Y: Move up by the full growthAmount to keep bottom edge at same floor level
-    // (when ball grows, it expands equally in all directions from center, so we compensate)
     const centeredTop = y - growthAmount;
 
     return (
@@ -52,23 +48,23 @@ export const Enemy = React.memo(React.forwardRef<HTMLDivElement, EnemyProps>(
           borderRadius: '50%',
           top: `${centeredTop}px`,
           left: `${centeredLeft}px`,
-          backgroundColor: isHit ? '#4fc3f7' : 'red', // Change to blue when hit
+          backgroundColor: isHit ? '#4fc3f7' : 'red',
           boxShadow: isHit ? '0 0 15px #4fc3f7' : '0 0 15px red',
           transform: `scale(${scaleX}, ${scaleY})`,
           transition: isHit
             ? 'none'
-            : 'transform 0.3s ease, background-color 0.75s ease, box-shadow 0.25s ease',
+            : 'background-color 0.75s ease, box-shadow 0.25s ease',
           cursor: onShoot ? 'pointer' : 'default',
           userSelect: 'none',
           WebkitUserSelect: 'none',
           WebkitTouchCallout: 'none',
           WebkitTapHighlightColor: 'transparent',
           touchAction: 'manipulation',
+          zIndex: 1000,
         }}
       />
     );
   }
 ));
-
 
 Enemy.displayName = 'Enemy';

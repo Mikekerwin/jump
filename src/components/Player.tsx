@@ -44,7 +44,8 @@ export const Player = React.forwardRef<HTMLDivElement, PlayerProps>(
           transform: `scale(${scaleX}, ${scaleY})`,
           transition: isHit
             ? 'none'
-            : 'background-color 0.75s ease, box-shadow 0.25s ease'
+            : 'background-color 0.75s ease, box-shadow 0.25s ease',
+          zIndex: 1000, // Above loading screen and UI
         }}
       />
     );

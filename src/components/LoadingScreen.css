@@ -8,10 +8,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 50; /* Lower z-index so players (z-index 100+) appear in front */
+  z-index: 500; /* Above UI elements but below players */
   opacity: 1;
   transition: opacity 1s ease-out;
-  pointer-events: none; /* Allow clicking through to players during loading */
 }
 
 .loading-screen.fade-out {

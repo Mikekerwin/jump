@@ -88,6 +88,15 @@ export const calculateResponsivePhysics = (screenHeight: number) => {
   };
 };
 
+// 🎬 INTRO ANIMATION CONFIGURATION
+// Control the three bounces that play when the loading screen fades
+export const INTRO_ANIMATION_DELAY = 2000;     // milliseconds - Delay before starting intro animation
+export const INTRO_BOUNCE_1_HOLD_TIME = 0;     // milliseconds - Quick tap (just initial boost)
+export const INTRO_BOUNCE_2_HOLD_TIME = 400;   // milliseconds - Short hold (medium height)
+export const INTRO_BOUNCE_3_HOLD_TIME = 1275;  // milliseconds - Long hold (max height, transitions to hover)
+export const INTRO_GROUND_WAIT_TIME = 300;     // milliseconds - Wait time on ground between bounces
+export const INTRO_TRANSITION_DAMPING = 0.92;  // 0-1, higher = slower deceleration when transitioning to hover
+
 // Function to calculate responsive laser dimensions
 export const calculateResponsiveLaserSize = (ballSize: number) => {
   // Laser width scales proportionally to ball size
