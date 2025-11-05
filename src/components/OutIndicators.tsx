@@ -25,10 +25,11 @@ export const OutIndicators: React.FC<OutIndicatorsProps> = ({
     const circleNumber = index + 1;
     const isFilled = circleNumber <= outs;
 
-    // Make circles 5 and 10 larger for enemy
+    // Make circles 4, 7, and 10 larger for enemy
     let circleSize = 6;
     if (isEnemy) {
-      if (circleNumber === 5) circleSize = 12;
+      if (circleNumber === 4) circleSize = 12;
+      if (circleNumber === 7) circleSize = 12;
       if (circleNumber === 10) circleSize = 12;
     }
 
