@@ -347,7 +347,7 @@ export const useGameLoop = () => {
           const currentEnemyHits = enemyHitsRef.current;
           if (currentEnemyHits >= HITS_PER_OUT) {
             enemyHitsRef.current = currentEnemyHits % HITS_PER_OUT;
-            setEnemyOuts(prev => {
+            setPlayerOuts(prev => {
               const newOuts = prev + 1;
               if (newOuts >= MAX_OUTS) {
                 gameOverRef.current = true;
@@ -355,9 +355,9 @@ export const useGameLoop = () => {
               }
               return Math.min(newOuts, MAX_OUTS);
             });
-            setPlayerGrowthLevel(prev => Math.min(prev + 1, MAX_GROWTH_LEVELS));
+            setPlayerGrowthLevel(prev => Math.max(prev - 1, 0));
             setEnemyGrowthLevel(prev => {
-              const newGrowth = Math.max(prev - 1, 0);
+              const newGrowth = Math.min(prev + 1, MAX_GROWTH_LEVELS);
               laserPhysicsRef.current?.setEnemyGrowthLevel(newGrowth);
               return newGrowth;
             });
@@ -414,7 +414,7 @@ export const useGameLoop = () => {
                       return Math.min(newOuts, MAX_OUTS);
                     });
                     setEnemyGrowthLevel(prev => {
-                      const newGrowth = Math.min(prev + 1, MAX_GROWTH_LEVELS);
+                      const newGrowth = Math.max(prev - 1, 0);
                       laserPhysicsRef.current?.setEnemyGrowthLevel(newGrowth);
                       return newGrowth;
                     });
