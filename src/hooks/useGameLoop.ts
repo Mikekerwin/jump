@@ -393,7 +393,7 @@ export const useGameLoop = () => {
                 projectile.y + PLAYER_PROJECTILE_HEIGHT > enemyCurrentY &&
                 projectile.y < enemyCurrentY + currentEnemyHeight;
 
-              if (hitEnemy && !enemyHitThisFrame) {
+              if (hitEnemy && !projectile.hasHitEnemy && !enemyHitThisFrame) {
                 enemyHitThisFrame = true;
                 playerHitsRef.current += 1;
                 const currentPlayerHits = playerHitsRef.current;
@@ -419,7 +419,7 @@ export const useGameLoop = () => {
                 setEnemyWasHit(true);
                 audioManagerRef.current?.playLaserHit();
                 setTimeout(() => setEnemyWasHit(false), 250);
-                return { ...projectile, active: false };
+                return { ...projectile, active: false, hasHitEnemy: true };
               }
 
               if (newX > dims.width) return { ...projectile, active: false };
@@ -510,6 +510,7 @@ export const useGameLoop = () => {
       x: currentPlayerState.position.x + dims.ballSize / 2,
       y: currentPlayerState.position.y + dims.ballSize / 2 - PLAYER_PROJECTILE_HEIGHT / 2,
       active: true,
+      hasHitEnemy: false,
     };
 
     setPlayerProjectiles((prev) => [...prev, newProjectile]);

@@ -37,6 +37,7 @@ export interface PlayerProjectile {
   x: number;
   y: number;
   active: boolean;
+  hasHitEnemy?: boolean;
 }
 
 export interface Star {
