@@ -103,6 +103,8 @@ export const useGameLoop = () => {
   const levelTransitionStage1CompleteRef = useRef(false);
   const levelTransitionStage6StartRef = useRef<number>(0);
   const levelTransitionStage3StartRef = useRef<number>(0);
+  const levelTransitionStage4StartRef = useRef<number>(0);
+  const levelTransitionStage4ExecutedRef = useRef(false);
   const [levelOverlayVisible, setLevelOverlayVisible] = useState(false);
   const [levelOverlaySubtitle, setLevelOverlaySubtitle] = useState('');
   const [cameraX, setCameraX] = useState(0);
@@ -341,12 +343,31 @@ export const useGameLoop = () => {
       laserPhysicsRef.current?.updateLaserCount(scoreRef.current);
       setNumLasers(laserPhysicsRef.current?.getNumLasers() || 1);
 
-      const newPlayerState = playerPhysicsRef.current?.update();
-      if (newPlayerState) {
-        setPlayerState(newPlayerState);
-        if (playerPhysicsRef.current?.shouldPlayBounceSound()) {
-          const volume = playerPhysicsRef.current.getBounceVolume();
-          audioManagerRef.current?.playBounce(volume);
+      // Only update player physics if NOT in level transition (except Stage 1 rolling out)
+      const shouldUpdatePlayerPhysics = !isLevelTransitionRef.current || levelTransitionStageRef.current === 1;
+      const wasInTransition = isLevelTransitionRef.current && levelTransitionStageRef.current !== 1;
+      let newPlayerState;
+
+      if (shouldUpdatePlayerPhysics) {
+        newPlayerState = playerPhysicsRef.current?.update();
+        if (newPlayerState) {
+          setPlayerState(newPlayerState);
+
+          // Log when physics resumes after level transition
+          if (wasInTransition && !isLevelTransitionRef.current) {
+            console.log('[PHYSICS RESUMED] Player position after first update:', newPlayerState.position.x, newPlayerState.position.y);
+          }
+
+          if (playerPhysicsRef.current?.shouldPlayBounceSound()) {
+            const volume = playerPhysicsRef.current.getBounceVolume();
+            audioManagerRef.current?.playBounce(volume);
+          }
+        }
+      } else {
+        // During level transition (stages 2-6), just get the current state without updating physics
+        newPlayerState = playerPhysicsRef.current?.getState();
+        if (newPlayerState) {
+          setPlayerState(newPlayerState);
         }
       }
 
@@ -563,14 +584,25 @@ export const useGameLoop = () => {
           const now = performance.now();
 
           if (now >= levelTransitionDelayRef.current) {
-            // Reset into next level, prepare camera at +width to pan in
+            // Recalculate dimensions in case window was resized
+            dimensionsRef.current = calculateDimensions();
             const dims = dimensionsRef.current;
+
+            console.log('[STAGE 2] Dimensions - width:', dims.width, 'height:', dims.height, 'centerY:', dims.centerY, 'floorY:', dims.floorY);
+
             // Increment level
             setLevel(prev => prev + 1);
             // Reset core systems similar to handleRestart
             scoreRef.current = 0;
             gameOverRef.current = false;
-            playerPhysicsRef.current?.reset(dims.playerStartX, dims.centerY);
+
+            // Position player off-screen to the right so camera pan reveals them
+            // Player should be at their normal start position relative to the camera target
+            const playerXForReveal = dims.width + dims.playerStartX;
+            console.log('[STAGE 2] Resetting player to X:', playerXForReveal, 'Y:', dims.centerY);
+            playerPhysicsRef.current?.reset(playerXForReveal, dims.centerY);
+            const afterReset = playerPhysicsRef.current?.getState();
+            console.log('[STAGE 2] Player position after reset:', afterReset?.position.x, afterReset?.position.y);
             laserPhysicsRef.current?.reset();
             enemyPhysicsRef.current?.reset(dims.centerY);
             enemyMovementRef.current?.reset(dims.centerY);
@@ -608,8 +640,8 @@ export const useGameLoop = () => {
             setCanShoot(false);
             setIsTenthOut(false); // Reset 10th out flag
             setEnemyInBounceMode(false); // Reset bounce mode
-            // Enemy will enter later; place off-screen right
-            const startX = dims.width + dims.ballSize * 2;
+            // Enemy will enter later; place off-screen right (2x width so it's completely hidden during pan)
+            const startX = dims.width * 2 + dims.ballSize * 2;
             enemyXRef.current = startX;
             setEnemyX(startX);
             isFinalSequenceRef.current = false;
@@ -628,7 +660,6 @@ export const useGameLoop = () => {
             forestTreesBackgroundRef.current?.setPaused(false);
             transitioningGroundRef.current?.setPaused(false);
 
-            console.log('[STAGE 2 COMPLETE] Moving to Stage 3 (camera pan). Camera at:', cameraXRef.current);
             levelTransitionStage3StartRef.current = performance.now();
             levelTransitionStageRef.current = 3; // camera pan
           }
@@ -652,30 +683,44 @@ export const useGameLoop = () => {
 
           const nextCam = targetCam * easing;
 
-          console.log(`[CAMERA PAN] progress: ${progress.toFixed(3)}, easing: ${easing.toFixed(3)}, cameraX: ${nextCam.toFixed(1)}, target: ${targetCam}`);
-
           cameraXRef.current = nextCam;
           setCameraX(nextCam);
 
           if (Math.abs(nextCam - targetCam) < 0.5) {
-            console.log('[CAMERA PAN] Complete! Moving to Stage 4');
             cameraXRef.current = targetCam;
             setCameraX(targetCam);
+            levelTransitionStage4StartRef.current = performance.now();
+            levelTransitionStage4ExecutedRef.current = false; // Reset flag
             levelTransitionStageRef.current = 4;
           }
         } else if (levelTransitionStageRef.current === 4) {
-          // Reset camera back to 0 (backgrounds keep scrolling naturally)
-          // During the 3.5s pan, backgrounds scrolled naturally, so resetting camera
-          // just shows a different part of the looping forest (seamless)
-          cameraXRef.current = 0;
-          setCameraX(0);
-
-          console.log('[STAGE 4] Camera reset to 0, backgrounds continue scrolling');
-          levelTransitionStageRef.current = 5; // advance to enemy enter
-        } else if (levelTransitionStageRef.current === 5) {
-          // Enemy rolls in from right to starting position
+          // Stage 4: Keep camera at dims.width, just reposition player for normal gameplay
+          // We don't reset the camera - backgrounds continue scrolling naturally
           const dims = dimensionsRef.current;
-          const targetX = dims.enemyX;
+          const elapsed = performance.now() - levelTransitionStage4StartRef.current;
+
+          // Only execute Stage 4 actions once (use flag instead of time check)
+          if (!levelTransitionStage4ExecutedRef.current) {
+            levelTransitionStage4ExecutedRef.current = true;
+
+            // Player is currently at world position (dims.width + dims.playerStartX)
+            // Camera is at dims.width
+            // Visual position: (dims.width + dims.playerStartX) - dims.width = dims.playerStartX ✓
+            // Keep camera at dims.width and player stays where they are
+            console.log('[STAGE 4] Camera staying at:', cameraXRef.current, 'Player at:', dims.width + dims.playerStartX);
+          }
+
+          // Wait 50ms for state updates to propagate before advancing
+          if (elapsed >= 50) {
+            console.log('[STAGE 4] Complete, advancing to Stage 5');
+            // Now that setup is done, enemy can start rolling in
+            levelTransitionStageRef.current = 5; // advance to enemy enter
+          }
+        } else if (levelTransitionStageRef.current === 5) {
+          // Enemy rolls in from right to starting position (AFTER camera pan completes)
+          // Camera is at dims.width, so enemy world position should be dims.enemyX + dims.width
+          const dims = dimensionsRef.current;
+          const targetX = dims.enemyX + dims.width;
           const ENTER_EASE = 0.12;
           const next = enemyXRef.current + (targetX - enemyXRef.current) * ENTER_EASE;
           enemyXRef.current = next;
@@ -695,7 +740,17 @@ export const useGameLoop = () => {
         } else if (levelTransitionStageRef.current === 6) {
           // Wait at least 500ms for intro animation to start, then fade out overlay
           const elapsed = performance.now() - levelTransitionStage6StartRef.current;
+
+          // Debug: Log player position at start of Stage 6
+          if (elapsed < 100) {
+            const pState = playerPhysicsRef.current?.getState();
+            console.log('[STAGE 6] Player pos:', pState?.position.x, pState?.position.y, 'Camera:', cameraXRef.current);
+          }
+
           if (elapsed >= 500) {
+            const pState = playerPhysicsRef.current?.getState();
+            console.log('[STAGE 6] Completing. Player pos before resume:', pState?.position.x, pState?.position.y);
+
             setControlsEnabled(true);
             setLevelOverlayVisible(false);
             // Resume background/ground scroll for next level
@@ -704,6 +759,8 @@ export const useGameLoop = () => {
             isLevelTransitionRef.current = false;
             levelTransitionStageRef.current = 0;
             levelTransitionStage1CompleteRef.current = false; // Reset for next transition
+
+            console.log('[STAGE 6] Complete. Resuming normal gameplay. Player physics will resume updating.');
           }
         }
       }
