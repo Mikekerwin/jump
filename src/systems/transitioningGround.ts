@@ -30,6 +30,15 @@ export class TransitioningGround {
   private cachedWidth: number = 0;
   private cachedHeight: number = 0;
 
+  // Slowdown properties
+  private isSlowingDown: boolean = false;
+  private slowdownStartTime: number = 0;
+  private slowdownDuration: number = 0;
+  private initialSpeed: number = 0;
+  private currentScrollSpeed: number = GROUND_SCROLL_SPEED;
+  
+  private forceForestOnly: boolean = false;
+
   constructor(cloudImagePath: string, transitionImagePath: string, forestImagePath: string) {
     // Load all images immediately (preloaded by loading screen)
     this.cloudImage = new Image();
@@ -136,13 +145,52 @@ export class TransitioningGround {
   }
 
   /**
-   * Update ground offset for scrolling animation
+   * Starts the process of slowing down the ground scroll speed to zero over a specified duration.
+   * @param duration The time in milliseconds over which to slow down.
+   */
+  startSlowingDown(duration: number): void {
+    if (!this.isSlowingDown) {
+      this.isSlowingDown = true;
+      this.slowdownStartTime = performance.now();
+      this.slowdownDuration = duration;
+      this.initialSpeed = this.currentScrollSpeed;
+    }
+  }
+
+  /**
+   * Immediately pause or resume ground scrolling without altering offsets.
+   */
+  public setPaused(paused: boolean): void {
+    if (paused) {
+      this.isSlowingDown = false;
+      this.currentScrollSpeed = 0;
+    } else {
+      this.isSlowingDown = false;
+      this.currentScrollSpeed = GROUND_SCROLL_SPEED;
+    }
+  }
+
+  /**
+   * Update ground offset for scrolling animation. Handles deceleration if triggered.
    */
   update(score: number): void {
     if (!this.cloudImageLoaded && !this.forestImageLoaded) return;
 
+    if (this.isSlowingDown) {
+      const elapsedTime = performance.now() - this.slowdownStartTime;
+      if (elapsedTime < this.slowdownDuration) {
+        const progress = elapsedTime / this.slowdownDuration;
+        // Ease-out quint function for a smoother stop: t => 1 - Math.pow(1 - t, 5)
+        const easing = 1 - Math.pow(1 - progress, 5);
+        this.currentScrollSpeed = this.initialSpeed * (1 - easing);
+      } else {
+        this.currentScrollSpeed = 0;
+        this.isSlowingDown = false;
+      }
+    }
+
     // Move ground to the left
-    this.offsetX -= GROUND_SCROLL_SPEED;
+    this.offsetX -= this.currentScrollSpeed;
 
     // Mark transition point when score reaches 100 (but wait for next tile boundary)
     if (score >= FOREST_UNLOCK_SCORE && !this.transitionStarted) {
@@ -158,7 +206,7 @@ export class TransitioningGround {
    * Sequence: cloud → transition tile → forest (looping)
    * Uses offscreen canvas caching for better performance
    */
-  render(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number, score: number): void {
+    render(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number, score: number): void {
     if (!this.cloudImageLoaded || !this.cloudImage) return;
 
     const heightExtension = canvasHeight * GROUND_HEIGHT_EXTENSION_PERCENT;
@@ -174,104 +222,126 @@ export class TransitioningGround {
     // Create cached tiles if needed
     this.createCachedTiles(canvasWidth, canvasHeight, heightExtension, cloudScale);
 
+    // Forest-only override for level transitions
+    if (this.forceForestOnly && this.cachedForestTile) {
+      const baseScale = cloudScale;
+      const forestAdjustedWidth = this.forestImageWidth * baseScale;
+      const wrappedOffsetX = this.offsetX % forestAdjustedWidth;
+      for (let x = wrappedOffsetX; x < canvasWidth + 2; x += forestAdjustedWidth) {
+        ctx.drawImage(this.cachedForestTile, x, yPosition);
+      }
+      return;
+    }
+
     if (!this.transitionStarted) {
       // Before score 100: Just draw cloud ground looping
       if (!this.cachedCloudTile) return;
-
       const wrappedOffsetX = this.offsetX % cloudAdjustedWidth;
       for (let x = wrappedOffsetX; x < canvasWidth + 2; x += cloudAdjustedWidth) {
         ctx.drawImage(this.cachedCloudTile, x, yPosition);
       }
-    } else {
-      // After score 100: Draw cloud → transition → forest sequence
-      if (!this.cachedCloudTile || !this.cachedTransitionTile || !this.cachedForestTile) {
-        // Cached tiles not ready yet, just draw clouds
-        if (!this.cachedCloudTile) return;
-        const wrappedOffsetX = this.offsetX % cloudAdjustedWidth;
-        for (let x = wrappedOffsetX; x < canvasWidth + 2; x += cloudAdjustedWidth) {
+      return;
+    }
+
+    // After score 100: Draw cloud + transition + forest sequence
+    if (!this.cachedCloudTile || !this.cachedTransitionTile || !this.cachedForestTile) {
+      // Cached tiles not ready yet, just draw clouds
+      if (!this.cachedCloudTile) return;
+      const wrappedOffsetX = this.offsetX % cloudAdjustedWidth;
+      for (let x = wrappedOffsetX; x < canvasWidth + 2; x += cloudAdjustedWidth) {
+        ctx.drawImage(this.cachedCloudTile, x, yPosition);
+      }
+      return;
+    }
+
+    // Use the SAME scale for all images to ensure seamless alignment
+    const baseScale = cloudScale;
+
+    // Calculate transition and forest dimensions
+    const transitionAdjustedWidth = this.transitionImageWidth * baseScale;
+    const forestAdjustedWidth = this.forestImageWidth * baseScale;
+
+    // Find where cloud tiles currently are
+    const wrappedOffsetX = this.offsetX % cloudAdjustedWidth;
+
+    // When transition started, find the position of the rightmost cloud tile edge that's past the screen
+    const wrappedOffsetAtTransitionStart = this.transitionOffsetX % cloudAdjustedWidth;
+
+    // Find how far to the right the next tile boundary is from the right edge of screen
+    let nextBoundaryFromTransitionStart = wrappedOffsetAtTransitionStart;
+    while (nextBoundaryFromTransitionStart < canvasWidth) {
+      nextBoundaryFromTransitionStart += cloudAdjustedWidth;
+    }
+
+    // Calculate how far we've scrolled since transition was triggered
+    const scrolledSinceTransition = Math.abs(this.offsetX - this.transitionOffsetX);
+
+    // Transition appears when we've scrolled enough to reach that boundary
+    const transitionStartX = nextBoundaryFromTransitionStart - scrolledSinceTransition;
+
+    // Draw cloud tiles up to where the transition starts
+    if (transitionStartX > 0) {
+      // Clouds are still visible - use cached tile
+      for (let x = wrappedOffsetX; x < Math.min(transitionStartX, canvasWidth + 2); x += cloudAdjustedWidth) {
+        if (x + cloudAdjustedWidth > 0) {
           ctx.drawImage(this.cachedCloudTile, x, yPosition);
         }
-        return;
       }
+    }
 
-      // Use the SAME scale for all images to ensure seamless alignment
-      const baseScale = cloudScale;
+    // Draw transition tile if it's in view
+    const transitionEndX = transitionStartX + transitionAdjustedWidth;
+    if (transitionStartX < canvasWidth + 2 && transitionEndX > 0) {
+      ctx.drawImage(this.cachedTransitionTile, transitionStartX, yPosition);
+    }
 
-      // Calculate transition and forest dimensions
-      const transitionAdjustedWidth = this.transitionImageWidth * baseScale;
-      const forestAdjustedWidth = this.forestImageWidth * baseScale;
+    // Draw forest tiles after the transition
+    const forestStartX = transitionEndX;
+    if (forestStartX < canvasWidth + 2) {
+      // Check if we've scrolled far enough that transition is off-screen and we should loop forest
+      if (transitionEndX < 0) {
+        // Transition has scrolled completely off-screen - draw forest with wrapping
+        const distanceIntoForest = Math.abs(transitionEndX);
+        const forestOffset = distanceIntoForest % forestAdjustedWidth;
+        const forestWrappedStart = -forestOffset;
 
-      // Draw tiles in sequence: cloud (scrolling off) → transition (once) → forest (looping)
-      // Wait for next tile boundary to start transition
-
-      // Find where cloud tiles currently are
-      const wrappedOffsetX = this.offsetX % cloudAdjustedWidth;
-
-      // When transition started, find the position of the rightmost cloud tile edge that's past the screen
-      // We want the transition to start from the NEXT cloud tile boundary after the right edge
-      const wrappedOffsetAtTransitionStart = this.transitionOffsetX % cloudAdjustedWidth;
-
-      // Find how far to the right the next tile boundary is from the right edge of screen
-      // Start from the wrapped position and find the first tile boundary at or past canvasWidth
-      let nextBoundaryFromTransitionStart = wrappedOffsetAtTransitionStart;
-      while (nextBoundaryFromTransitionStart < canvasWidth) {
-        nextBoundaryFromTransitionStart += cloudAdjustedWidth;
-      }
-
-      // Calculate how far we've scrolled since transition was triggered
-      const scrolledSinceTransition = Math.abs(this.offsetX - this.transitionOffsetX);
-
-      // Transition appears when we've scrolled enough to reach that boundary
-      const transitionStartX = nextBoundaryFromTransitionStart - scrolledSinceTransition;
-
-      // Draw cloud tiles up to where the transition starts
-      if (transitionStartX > 0) {
-        // Clouds are still visible - use cached tile
-        for (let x = wrappedOffsetX; x < Math.min(transitionStartX, canvasWidth + 2); x += cloudAdjustedWidth) {
-          if (x + cloudAdjustedWidth > 0) {
-            ctx.drawImage(this.cachedCloudTile, x, yPosition);
-          }
+        for (let x = forestWrappedStart; x < canvasWidth + 2; x += forestAdjustedWidth) {
+          ctx.drawImage(this.cachedForestTile, x, yPosition);
         }
-      }
-
-      // Draw transition tile if it's in view
-      const transitionEndX = transitionStartX + transitionAdjustedWidth;
-      if (transitionStartX < canvasWidth + 2 && transitionEndX > 0) {
-        ctx.drawImage(this.cachedTransitionTile, transitionStartX, yPosition);
-      }
-
-      // Draw forest tiles after the transition
-      const forestStartX = transitionEndX;
-      if (forestStartX < canvasWidth + 2) {
-        // Check if we've scrolled far enough that transition is off-screen and we should loop forest
-        if (transitionEndX < 0) {
-          // Transition has scrolled completely off-screen - draw forest with wrapping
-          const distanceIntoForest = Math.abs(transitionEndX);
-          const forestOffset = distanceIntoForest % forestAdjustedWidth;
-          const forestWrappedStart = -forestOffset;
-
-          for (let x = forestWrappedStart; x < canvasWidth + 2; x += forestAdjustedWidth) {
+      } else {
+        // Transition is still visible or just passed - draw forest tiles after it
+        for (let x = forestStartX; x < canvasWidth + 2; x += forestAdjustedWidth) {
+          if (x > 0) {
             ctx.drawImage(this.cachedForestTile, x, yPosition);
-          }
-        } else {
-          // Transition is still visible or just passed - draw forest tiles after it
-          for (let x = forestStartX; x < canvasWidth + 2; x += forestAdjustedWidth) {
-            if (x > 0) {
-              ctx.drawImage(this.cachedForestTile, x, yPosition);
-            }
           }
         }
       }
     }
+  }  /**
+   * Force ground to render forest tiles only (used for level transitions)
+   */
+  public setForestMode(force: boolean): void {
+    this.forceForestOnly = force;
+    if (force) {
+      this.transitionStarted = true;
+    }
   }
-
   /**
-   * Reset ground position
+   * Reset ground position and scroll speed.
    */
   reset(): void {
     this.offsetX = 0;
     this.transitionStarted = false;
     this.transitionOffsetX = 0;
+    this.isSlowingDown = false;
+    this.currentScrollSpeed = GROUND_SCROLL_SPEED;
+  }
+
+  /**
+   * Adjust the scroll offset (used for camera pan positioning)
+   */
+  adjustOffset(deltaX: number): void {
+    this.offsetX += deltaX;
   }
 
   /**
@@ -281,3 +351,13 @@ export class TransitioningGround {
     // Ground scales automatically based on canvas size
   }
 }
+
+
+
+
+
+
+
+
+
+

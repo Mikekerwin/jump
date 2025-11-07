@@ -9,10 +9,11 @@ import { PLAYER_PROJECTILE_WIDTH, PLAYER_PROJECTILE_HEIGHT } from '../config/gam
 interface PlayerProjectileProps {
   x: number;
   y: number;
+  cameraX?: number;
 }
 
 export const PlayerProjectile = React.forwardRef<HTMLDivElement, PlayerProjectileProps>(
-  ({ x, y }, ref) => {
+  ({ x, y, cameraX = 0 }, ref) => {
     return (
       <div
         ref={ref}
@@ -22,7 +23,7 @@ export const PlayerProjectile = React.forwardRef<HTMLDivElement, PlayerProjectil
           height: `${PLAYER_PROJECTILE_HEIGHT}px`,
           backgroundColor: '#4fc3f7', // Blue color matching player
           boxShadow: '0 0 10px #4fc3f7',
-          transform: `translate3d(${x}px, ${y}px, 0)`,
+          transform: `translate3d(${x - cameraX}px, ${y}px, 0)`,
         }}
       />
     );

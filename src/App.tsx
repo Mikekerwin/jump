@@ -14,6 +14,7 @@
  */
 
 import React, { useEffect, useRef, useMemo } from 'react';
+import './App.css';
 import { useGameLoop } from './hooks/useGameLoop';
 import { Player } from './components/Player';
 import { Enemy } from './components/Enemy';
@@ -61,6 +62,7 @@ const App: React.FC = () => {
     enemyWasHit,
     playerState,
     lasers,
+    enemyX,
     enemyY,
     enemyScale,
     wasHit,
@@ -78,6 +80,12 @@ const App: React.FC = () => {
     forestTreesBackground,
     transitioningGround,
     gradientOverlay,
+    level,
+    controlsEnabled,
+    levelOverlayVisible,
+    levelOverlaySubtitle,
+    impactAmount,
+    isShaking,
     isMuted,
     handleJumpStart,
     handleJumpEnd,
@@ -86,7 +94,13 @@ const App: React.FC = () => {
     handleShoot,
     handleRestart,
     handleToggleSound,
+    handleTestTenOuts,
+    cameraX,
   } = useGameLoop();
+
+  // Keep latest cameraX available inside rAF loop without re-creating effect
+  const cameraXRef = useRef<number>(0);
+  useEffect(() => { cameraXRef.current = cameraX; }, [cameraX]);
 
   /**
    * Prevent default touch behaviors on document level (overscroll, pull-to-refresh)
@@ -134,6 +148,11 @@ const App: React.FC = () => {
       // Clear canvas
       ctx.clearRect(0, 0, dimensions.width, dimensions.height);
 
+      // Apply camera pan for backgrounds
+      ctx.save();
+      // Use ref to avoid stale closure and restart churn
+      ctx.translate(-cameraXRef.current, 0);
+
       // 1. Render static cloud sky (always present, doesn't scroll)
       staticCloudSky.render(ctx, dimensions.width, dimensions.height);
 
@@ -148,8 +167,11 @@ const App: React.FC = () => {
         backgroundStars.render(ctx);
       }
 
-      // 5. Render transitioning ground (cloud ground → forest ground at score 100) - on top of everything
+      // 5. Render transitioning ground (cloud ground + forest ground at score 100) - on top of everything
       transitioningGround.render(ctx, dimensions.width, dimensions.height, score);
+
+      // Restore camera transform
+      ctx.restore();
 
       if (!gameOver) {
         animationFrameId = requestAnimationFrame(renderLoop);
@@ -288,11 +310,14 @@ const App: React.FC = () => {
 
   return (
     <div
+      className={isShaking ? 'shake' : undefined}
       style={{
         position: 'fixed',
         inset: 0,
         overflow: 'hidden',
         background: '#000',
+        animation: isShaking ? 'screen-shake 200ms ease' : undefined,
+        willChange: isShaking ? 'transform' : undefined,
         userSelect: 'none',
         WebkitUserSelect: 'none',
         WebkitTouchCallout: 'none',
@@ -322,29 +347,33 @@ const App: React.FC = () => {
         characterWidth={dimensions.ballSize * (1 + playerGrowthLevel * GROWTH_SCALE_PER_LEVEL)}
         baseSize={dimensions.ballSize}
         growthLevel={playerGrowthLevel}
+        cameraX={cameraX}
       />
 
       {/* Player Ball - Always visible */}
       <Player
         playerState={playerState}
         isHit={wasHit}
+        impactAmount={impactAmount}
         growthLevel={playerGrowthLevel}
         ballSize={dimensions.ballSize}
+        cameraX={cameraX}
       />
 
       {/* Enemy Shadow - Always visible */}
       <Shadow
-        x={dimensions.enemyX}
+        x={enemyX}
         characterY={enemyY}
         floorY={dimensions.floorY}
         characterWidth={dimensions.ballSize * (1 + enemyGrowthLevel * GROWTH_SCALE_PER_LEVEL)}
         baseSize={dimensions.ballSize}
         growthLevel={enemyGrowthLevel}
+        cameraX={cameraX}
       />
 
       {/* Enemy Launcher - Always visible */}
       <Enemy
-        x={dimensions.enemyX}
+        x={enemyX}
         y={enemyY}
         scaleX={enemyScale.scaleX}
         scaleY={enemyScale.scaleY}
@@ -352,6 +381,7 @@ const App: React.FC = () => {
         isHit={enemyWasHit}
         onShoot={score >= 100 ? handleShoot : undefined}
         ballSize={dimensions.ballSize}
+        cameraX={cameraX}
       />
 
       {!gameOver && (
@@ -379,6 +409,27 @@ const App: React.FC = () => {
               TEST: Fill Energy
             </button>
           )}
+
+          {/* Test Button - 10 Outs */}
+          <button
+            onClick={handleTestTenOuts}
+            style={{
+              position: 'absolute',
+              top: '150px',
+              left: '20px',
+              padding: '10px 20px',
+              backgroundColor: '#ffc107',
+              color: 'black',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: 'pointer',
+              fontFamily: 'monospace',
+              fontSize: '14px',
+              zIndex: 1000,
+            }}
+          >
+            TEST: 10 Outs
+          </button>
 
           {/* Score Display */}
           <ScoreDisplay score={score} />
@@ -454,6 +505,7 @@ const App: React.FC = () => {
               ref={(el) => {
                 laserRefs.current[index] = el;
               }}
+              cameraX={cameraX}
             />
           ))}
 
@@ -463,12 +515,37 @@ const App: React.FC = () => {
               key={index}
               x={projectile.x}
               y={projectile.y}
+              cameraX={cameraX}
             />
           ))}
         </>
       )}
 
       {gameOver && <GameOver onRestart={handleRestart} shootGameOver={shootGameOver} />}
+
+      {/* Level Overlay */}
+      {levelOverlayVisible && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'column',
+            color: 'white',
+            textAlign: 'center',
+            fontFamily: 'monospace',
+            pointerEvents: 'none',
+            opacity: levelOverlayVisible ? 1 : 0,
+            transition: 'opacity 600ms ease',
+            zIndex: 2000,
+          }}
+        >
+          <div style={{ fontSize: '6rem', textShadow: '0 0 20px #fff' }}>Jump!</div>
+          <div style={{ fontSize: '2.5rem', marginTop: '10px', opacity: 0.9 }}>{levelOverlaySubtitle}</div>
+        </div>
+      )}
 
       {/* Sound Toggle Button */}
       <SoundToggleButton isMuted={isMuted} onToggle={handleToggleSound} />
@@ -480,3 +557,13 @@ const App: React.FC = () => {
 };
 
 export default App;
+
+
+
+
+
+
+
+
+
+

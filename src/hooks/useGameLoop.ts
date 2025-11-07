@@ -16,20 +16,21 @@ import { ScrollingBackground } from '../systems/scrollingBackground';
 import { TransitioningGround } from '../systems/transitioningGround';
 import { GradientOverlay } from '../systems/gradientOverlay';
 import { PlayerState, LaserState, PlayerProjectile } from '../types/game';
-import {
-  PLAYER_X_POSITION,
-  ENEMY_X_POSITION,
-  SCORE_UPDATE_INTERVAL,
-  PLAYER_PROJECTILE_SPEED,
-  PLAYER_PROJECTILE_WIDTH,
-  PLAYER_PROJECTILE_HEIGHT,
-  MAX_OUTS,
-  HITS_PER_OUT,
-  CLOUD_SKY_IMAGE_PATH,
-  CLOUD_GROUND_IMAGE_PATH,
-  TRANSITION_GROUND_IMAGE_PATH,
-  FOREST_TREES_IMAGE_PATH,
-  FOREST_GROUND_IMAGE_PATH,
+  import {
+    PLAYER_X_POSITION,
+    ENEMY_X_POSITION,
+    SCORE_UPDATE_INTERVAL,
+    PLAYER_PROJECTILE_SPEED,
+    PLAYER_PROJECTILE_WIDTH,
+    PLAYER_PROJECTILE_HEIGHT,
+    MAX_OUTS,
+    HITS_PER_OUT,
+    BASE_LASER_SPEED,
+    CLOUD_SKY_IMAGE_PATH,
+    CLOUD_GROUND_IMAGE_PATH,
+    TRANSITION_GROUND_IMAGE_PATH,
+    FOREST_TREES_IMAGE_PATH,
+    FOREST_GROUND_IMAGE_PATH,
   GROUND_HEIGHT_EXTENSION_PERCENT,
   MAX_GROWTH_LEVELS,
   GROWTH_SCALE_PER_LEVEL,
@@ -84,12 +85,40 @@ export const useGameLoop = () => {
   const [enemyOuts, setEnemyOuts] = useState(0);
   const [shootGameOver, setShootGameOver] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [enemyX, setEnemyX] = useState(0);
+  const enemyXRef = useRef(0);
+  const [isShaking, setIsShaking] = useState(false);
+  const [impactAmount, setImpactAmount] = useState(0);
+  const impactAmountRef = useRef(0);
+  const impactPhaseRef = useRef(0);
+  const impactAmplitudeRef = useRef(0);
+  const impactCyclesRef = useRef(0);
+  const [level, setLevel] = useState(1);
+  const levelRef = useRef(1);
+  const [controlsEnabled, setControlsEnabled] = useState(true);
+  const isLevelTransitionRef = useRef(false);
+  // 0 none, 1 roll-out, 2 reset, 3 camera pan right, 4 camera pan back, 5 enemy enter, 6 done
+  const levelTransitionStageRef = useRef<0 | 1 | 2 | 3 | 4 | 5 | 6>(0);
+  const levelTransitionDelayRef = useRef<number>(0);
+  const levelTransitionStage1CompleteRef = useRef(false);
+  const levelTransitionStage6StartRef = useRef<number>(0);
+  const levelTransitionStage3StartRef = useRef<number>(0);
+  const [levelOverlayVisible, setLevelOverlayVisible] = useState(false);
+  const [levelOverlaySubtitle, setLevelOverlaySubtitle] = useState('');
+  const [cameraX, setCameraX] = useState(0);
+  const cameraXRef = useRef(0);
 
   // Enemy bounce mode state (for 4th, 7th, 10th outs)
   const [enemyInBounceMode, setEnemyInBounceMode] = useState(false);
   const [isTenthOut, setIsTenthOut] = useState(false);
   const enemyInBounceModeRef = useRef(false);
   const isTenthOutRef = useRef(false);
+  const isFinalSequenceRef = useRef(false);
+  const isReturningToRightRef = useRef(false);
+  const nextChargeTimeRef = useRef<number>(0);
+  const lastFinalCollisionTimeRef = useRef<number>(0);
+  const chargeActiveRef = useRef(false);
+  const chargeVelocityRef = useRef(0);
 
   // Game systems
   const playerPhysicsRef = useRef<PlayerPhysics | null>(null);
@@ -212,6 +241,8 @@ export const useGameLoop = () => {
     setPlayerState(playerPhysicsRef.current.getState());
     setLasers(laserPhysicsRef.current.getLasers());
     setEnemyY(dims.centerY);
+    setEnemyX(dims.enemyX);
+    enemyXRef.current = dims.enemyX;
 
     return () => {
       cleanupAudio();
@@ -237,6 +268,13 @@ export const useGameLoop = () => {
   useEffect(() => {
     energyRef.current = energy;
   }, [energy]);
+
+  useEffect(() => {
+    levelRef.current = level;
+  }, [level]);
+  useEffect(() => {
+    cameraXRef.current = cameraX;
+  }, [cameraX]);
 
   useEffect(() => {
     enemyInBounceModeRef.current = enemyInBounceMode;
@@ -294,7 +332,8 @@ export const useGameLoop = () => {
     const loop = () => {
       if (gameOverRef.current) return;
 
-      if (scoreRef.current >= 100) {
+      // Update forest background when score >= 100 OR during level transition
+      if (scoreRef.current >= 100 || isLevelTransitionRef.current) {
         forestTreesBackgroundRef.current?.update();
       }
       transitioningGroundRef.current?.update(scoreRef.current);
@@ -311,9 +350,22 @@ export const useGameLoop = () => {
         }
       }
 
+      // Level transition: Stage 1 — roll player off-screen to the right
+      if (isLevelTransitionRef.current && levelTransitionStageRef.current === 1 && playerPhysicsRef.current) {
+        const cur = playerPhysicsRef.current.getState();
+        const rollSpeed = 8;
+        playerPhysicsRef.current.setX(cur.position.x + rollSpeed);
+        const dims = dimensionsRef.current;
+        if (cur.position.x > dims.width + dims.ballSize && !levelTransitionStage1CompleteRef.current) {
+          // Player has rolled off screen - advance to Stage 2 ONCE and set delay timer
+          levelTransitionStage1CompleteRef.current = true; // Prevent re-triggering
+          levelTransitionDelayRef.current = performance.now() + 4000;
+          levelTransitionStageRef.current = 2;
+        }
+      }
+
       // Update enemy physics during intro animation or bounce mode
       if (enemyPhysicsRef.current && !enemyPhysicsRef.current.isHoverMode()) {
-        console.log('[UPDATE] Using EnemyPhysics (bounce/intro mode)');
         const enemyState = enemyPhysicsRef.current.update();
 
         // Check if enemy is ready to transition to hover (after intro animation ONLY, not during bounce mode)
@@ -325,9 +377,11 @@ export const useGameLoop = () => {
 
         // On 10th out: disable enemy when it hits the ground (no bounce, no shoot)
         if (isTenthOutRef.current &&
+            !isFinalSequenceRef.current &&
             enemyState.position.y >= dimensionsRef.current.centerY - 1 &&
             Math.abs(enemyState.velocity) < 1) {
-          enemyPhysicsRef.current.disable();
+          enemyPhysicsRef.current.stopBouncing();
+          isFinalSequenceRef.current = true;
         }
 
         // Check if enemy should exit bounce mode (after 4 jumps complete, on 5th jump at peak)
@@ -347,9 +401,114 @@ export const useGameLoop = () => {
         // Update enemy Y position and scale from physics
         setEnemyY(enemyState.position.y);
         setEnemyScale({ scaleX: enemyState.scaleX, scaleY: enemyState.scaleY });
+
+        if (isFinalSequenceRef.current) {
+          const now = performance.now();
+          const dims = dimensionsRef.current;
+          const enemyGrowthScale = 1 + enemyGrowthLevelRef.current * GROWTH_SCALE_PER_LEVEL;
+          const enemyWidth = dims.ballSize * enemyGrowthScale;
+          const playerGrowthScale = 1 + playerGrowthLevelRef.current * GROWTH_SCALE_PER_LEVEL;
+          const playerSize = dims.ballSize * playerGrowthScale;
+
+          // Movement during final sequence with easing: charge (ease-in), return (ease-out)
+          let nextX = enemyXRef.current;
+          if (isReturningToRightRef.current) {
+            const targetX = dims.enemyX;
+            const RETURN_EASE = 0.18; // ease-out factor
+            nextX = enemyXRef.current + (targetX - enemyXRef.current) * RETURN_EASE;
+            if (nextX >= targetX - 0.5) {
+              nextX = targetX;
+              isReturningToRightRef.current = false;
+              nextChargeTimeRef.current = now + 1000; // wait 1s then attempt another hit
+              chargeActiveRef.current = false;
+              chargeVelocityRef.current = 0;
+            }
+          } else {
+            // If waiting before next charge, hold position; else charge left with acceleration
+            if (now >= nextChargeTimeRef.current) {
+              const MAX_CHARGE_SPEED = 14;
+              const CHARGE_ACCEL = 0.8;
+              if (!chargeActiveRef.current) {
+                chargeActiveRef.current = true;
+                chargeVelocityRef.current = 0;
+              }
+              chargeVelocityRef.current = Math.min(MAX_CHARGE_SPEED, chargeVelocityRef.current + CHARGE_ACCEL);
+              nextX = enemyXRef.current - chargeVelocityRef.current;
+            }
+          }
+          enemyXRef.current = nextX;
+          setEnemyX(nextX);
+
+          // Use freshest player state available this frame
+          const pState = newPlayerState || playerPhysicsRef.current?.getState();
+          if (pState) {
+            // Collision detection during charge (only when charging left and not returning)
+            if (!isReturningToRightRef.current && now >= nextChargeTimeRef.current) {
+              const playerLeft = (pState.position.x - (playerSize - dims.ballSize) / 2);
+              const playerTop = (pState.position.y - (playerSize - dims.ballSize));
+              const enemyLeft = enemyXRef.current - (enemyWidth - dims.ballSize) / 2;
+              const enemyTop = enemyState.position.y - (enemyWidth - dims.ballSize);
+              const MARGIN = 4; // small tolerance for collision
+              const intersects = (
+                playerLeft - MARGIN < enemyLeft + enemyWidth + MARGIN &&
+                playerLeft + playerSize + MARGIN > enemyLeft - MARGIN &&
+                playerTop - MARGIN < enemyTop + enemyWidth + MARGIN &&
+                playerTop + playerSize + MARGIN > enemyTop - MARGIN
+              );
+
+              if (intersects && (now - lastFinalCollisionTimeRef.current) > 250) {
+                lastFinalCollisionTimeRef.current = now;
+                // Screen shake short burst
+                setIsShaking(true);
+                setTimeout(() => setIsShaking(false), 200);
+                // Start impact squash oscillator (decays with spring over ~3 pulses)
+                impactAmountRef.current = 1;
+                impactPhaseRef.current = 0;
+                impactAmplitudeRef.current = 1;
+                impactCyclesRef.current = 0;
+                setImpactAmount(1);
+
+                // Enemy bounces off and returns to right
+                isReturningToRightRef.current = true;
+                chargeActiveRef.current = false;
+                chargeVelocityRef.current = 0;
+
+                // Player takes 2 outs
+                setPlayerOuts(prev => {
+                  const newOuts = Math.min(prev + 2, MAX_OUTS);
+                  if (newOuts >= MAX_OUTS) {
+                    gameOverRef.current = true;
+                    setGameOver(true);
+                  }
+                  return newOuts;
+                });
+
+                // Enemy grows by 2 levels on successful hit (mirror of taking 2 outs on enemy)
+                setEnemyGrowthLevel(prev => {
+                  const newGrowth = Math.min(prev + 2, MAX_GROWTH_LEVELS);
+                  laserPhysicsRef.current?.setEnemyGrowthLevel(newGrowth);
+                  return newGrowth;
+                });
+              }
+            }
+
+          // If enemy passes off-screen left without collision: successful jump -> start level transition
+          if (!isReturningToRightRef.current && (enemyXRef.current + enemyWidth) < 0 && !isLevelTransitionRef.current) {
+            // Begin level transition sequence (ONCE)
+            isLevelTransitionRef.current = true;
+            levelTransitionStageRef.current = 1; // rolling out
+            setControlsEnabled(false);
+            setLevelOverlayVisible(true);
+            setLevelOverlaySubtitle(`Level ${levelRef.current + 1}`);
+            // Stop further enemy actions
+            nextChargeTimeRef.current = Number.POSITIVE_INFINITY;
+            chargeActiveRef.current = false;
+            chargeVelocityRef.current = 0;
+          }
+          }
+        }
       } else if (enemyMovementRef.current && enemyPhysicsRef.current?.isHoverMode()) {
         // Update enemy movement system (hover mode)
-        console.log('[UPDATE] Using EnemyMovement (hover mode)');
         enemyMovementRef.current.update();
         setEnemyY(enemyMovementRef.current.getCurrentY());
         setEnemyScale(enemyMovementRef.current.getScale());
@@ -367,6 +526,188 @@ export const useGameLoop = () => {
         return Math.abs(diff) < 0.01 ? target : prev + diff * 0.1;
       });
 
+
+      // Impact squash oscillation (damped spring ~3 pulses)
+      if (impactAmplitudeRef.current > 0 || impactAmountRef.current !== 0) {
+        const TWO_PI = Math.PI * 2;
+        const OMEGA = 0.30; // radians per frame (~350ms per cycle)
+        const FRICTION = 0.985; // per-frame amplitude friction
+        const PEAK_DAMP = 0.65; // amplitude damping at each positive peak
+        // Advance phase and apply friction
+        impactPhaseRef.current += OMEGA;
+        impactAmplitudeRef.current = Math.max(0, impactAmplitudeRef.current * FRICTION);
+        // On each full cycle, damp amplitude and count
+        if (impactPhaseRef.current >= (impactCyclesRef.current + 1) * TWO_PI) {
+          impactCyclesRef.current += 1;
+          impactAmplitudeRef.current *= PEAK_DAMP;
+          if (impactCyclesRef.current >= 3) {
+            impactAmountRef.current = 0;
+            impactAmplitudeRef.current = 0;
+            impactPhaseRef.current = 0;
+            impactCyclesRef.current = 0;
+            setImpactAmount(0);
+            // fall through to next loop iteration
+          }
+        }
+        if (impactAmplitudeRef.current > 0) {
+          const value = impactAmplitudeRef.current * Math.cos(impactPhaseRef.current);
+          impactAmountRef.current = value;
+          setImpactAmount(value);
+        }
+      }
+
+      // Handle level transition stage changes (camera pan and enemy enter)
+      if (isLevelTransitionRef.current) {
+        if (levelTransitionStageRef.current === 2) {
+          // Wait for delay before resetting
+          const now = performance.now();
+
+          if (now >= levelTransitionDelayRef.current) {
+            // Reset into next level, prepare camera at +width to pan in
+            const dims = dimensionsRef.current;
+            // Increment level
+            setLevel(prev => prev + 1);
+            // Reset core systems similar to handleRestart
+            scoreRef.current = 0;
+            gameOverRef.current = false;
+            playerPhysicsRef.current?.reset(dims.playerStartX, dims.centerY);
+            laserPhysicsRef.current?.reset();
+            enemyPhysicsRef.current?.reset(dims.centerY);
+            enemyMovementRef.current?.reset(dims.centerY);
+            introAnimationStartedRef.current = false;
+            backgroundStarsRef.current?.reset();
+
+            // Set up forest background for level 2+
+            // Don't reset - keep backgrounds scrolling continuously from level 1
+            // This ensures forest is already visible and scrolling
+            transitioningGroundRef.current?.setForestMode(true);
+
+            // Make sure forest background transition has started (should already be running from score 100)
+            forestTreesBackgroundRef.current?.startTransition();
+
+            setPlayerState(playerPhysicsRef.current?.getState() || playerState);
+            setLasers(laserPhysicsRef.current?.getLasers() || []);
+            setEnemyY(dims.centerY);
+            setNumLasers(1);
+            setGameOver(false);
+            setWasHit(false);
+            setEnemyWasHit(false);
+            setPlayerProjectiles([]);
+            setHitCount(0);
+            setEnemyGrowthLevel(0);
+            setAnimatedEnemyGrowthLevel(0);
+            enemyGrowthLevelRef.current = 0; // Reset enemy growth ref
+            setEnemyHits(0);
+            setPlayerGrowthLevel(0);
+            setAnimatedPlayerGrowthLevel(0);
+            playerGrowthLevelRef.current = 0;
+            setPlayerOuts(0);
+            setEnemyOuts(0);
+            setShootGameOver(false);
+            setEnergy(0);
+            setCanShoot(false);
+            setIsTenthOut(false); // Reset 10th out flag
+            setEnemyInBounceMode(false); // Reset bounce mode
+            // Enemy will enter later; place off-screen right
+            const startX = dims.width + dims.ballSize * 2;
+            enemyXRef.current = startX;
+            setEnemyX(startX);
+            isFinalSequenceRef.current = false;
+            isReturningToRightRef.current = false;
+            nextChargeTimeRef.current = 0;
+            chargeActiveRef.current = false;
+            chargeVelocityRef.current = 0;
+            // Increase laser speed slightly for next level
+            const speedMultiplier = 1 + 0.15 * (levelRef.current);
+            laserPhysicsRef.current?.setBaseSpeed(BASE_LASER_SPEED * speedMultiplier);
+            // Prepare camera to start at 0 and pan right to dims.width
+            cameraXRef.current = 0;
+            setCameraX(0);
+
+            // Ensure backgrounds are scrolling during camera pan
+            forestTreesBackgroundRef.current?.setPaused(false);
+            transitioningGroundRef.current?.setPaused(false);
+
+            console.log('[STAGE 2 COMPLETE] Moving to Stage 3 (camera pan). Camera at:', cameraXRef.current);
+            levelTransitionStage3StartRef.current = performance.now();
+            levelTransitionStageRef.current = 3; // camera pan
+          }
+        } else if (levelTransitionStageRef.current === 3) {
+          // Camera pans right with ease-in-out over 3.5 seconds
+          const dims = dimensionsRef.current;
+          const targetCam = dims.width;
+          const PAN_DURATION = 3500; // milliseconds
+
+          // Time-based progress (0 to 1)
+          const elapsed = performance.now() - levelTransitionStage3StartRef.current;
+          const progress = Math.min(elapsed / PAN_DURATION, 1);
+
+          // Ease-in-out cubic
+          let easing;
+          if (progress < 0.5) {
+            easing = 4 * progress * progress * progress;
+          } else {
+            easing = 1 - Math.pow(-2 * progress + 2, 3) / 2;
+          }
+
+          const nextCam = targetCam * easing;
+
+          console.log(`[CAMERA PAN] progress: ${progress.toFixed(3)}, easing: ${easing.toFixed(3)}, cameraX: ${nextCam.toFixed(1)}, target: ${targetCam}`);
+
+          cameraXRef.current = nextCam;
+          setCameraX(nextCam);
+
+          if (Math.abs(nextCam - targetCam) < 0.5) {
+            console.log('[CAMERA PAN] Complete! Moving to Stage 4');
+            cameraXRef.current = targetCam;
+            setCameraX(targetCam);
+            levelTransitionStageRef.current = 4;
+          }
+        } else if (levelTransitionStageRef.current === 4) {
+          // Reset camera back to 0 (backgrounds keep scrolling naturally)
+          // During the 3.5s pan, backgrounds scrolled naturally, so resetting camera
+          // just shows a different part of the looping forest (seamless)
+          cameraXRef.current = 0;
+          setCameraX(0);
+
+          console.log('[STAGE 4] Camera reset to 0, backgrounds continue scrolling');
+          levelTransitionStageRef.current = 5; // advance to enemy enter
+        } else if (levelTransitionStageRef.current === 5) {
+          // Enemy rolls in from right to starting position
+          const dims = dimensionsRef.current;
+          const targetX = dims.enemyX;
+          const ENTER_EASE = 0.12;
+          const next = enemyXRef.current + (targetX - enemyXRef.current) * ENTER_EASE;
+          enemyXRef.current = next;
+          setEnemyX(next);
+          if (Math.abs(next - targetX) < 0.5) {
+            enemyXRef.current = targetX;
+            setEnemyX(targetX);
+
+            // Trigger intro animation for enemy
+            if (enemyPhysicsRef.current) {
+              enemyPhysicsRef.current.startJumpSequence();
+            }
+
+            levelTransitionStage6StartRef.current = performance.now();
+            levelTransitionStageRef.current = 6;
+          }
+        } else if (levelTransitionStageRef.current === 6) {
+          // Wait at least 500ms for intro animation to start, then fade out overlay
+          const elapsed = performance.now() - levelTransitionStage6StartRef.current;
+          if (elapsed >= 500) {
+            setControlsEnabled(true);
+            setLevelOverlayVisible(false);
+            // Resume background/ground scroll for next level
+            forestTreesBackgroundRef.current?.setPaused(false);
+            transitioningGroundRef.current?.setPaused(false);
+            isLevelTransitionRef.current = false;
+            levelTransitionStageRef.current = 0;
+            levelTransitionStage1CompleteRef.current = false; // Reset for next transition
+          }
+        }
+      }
+
       // Get enemy Y from correct source (hover = EnemyMovement, physics = EnemyPhysics)
       const currentEnemyY = enemyPhysicsRef.current?.isHoverMode()
         ? (enemyMovementRef.current?.getCurrentY() || dimensionsRef.current.centerY)
@@ -380,7 +721,9 @@ export const useGameLoop = () => {
         playerGrowthLevelRef.current,
         enemyPhysicsRef.current?.isHoverMode() || false,
         enemyPhysicsRef.current?.isEnemyDisabled() || false,
-        enemyPhysicsRef.current?.hasCompletedIntro() || false
+        enemyPhysicsRef.current?.hasCompletedIntro() || false,
+        // Stop spawning lasers during 10th-out final sequence, but allow existing lasers to finish
+        isTenthOutRef.current || isFinalSequenceRef.current || isLevelTransitionRef.current
       );
 
       if (laserUpdate && laserPhysicsRef.current) {
@@ -485,8 +828,11 @@ export const useGameLoop = () => {
 
                         // On 10th out, mark special state and disable enemy
                         if (newOuts >= MAX_OUTS) {
+                          // Slow down background and ground movement for the final sequence
+                          transitioningGroundRef.current?.startSlowingDown(3000); // 3 seconds to stop
+                          forestTreesBackgroundRef.current?.startSlowingDown(2000); // 2 seconds to stop
+
                           setIsTenthOut(true);
-                          gameOverRef.current = true;
                           setShootGameOver(true);
                           // Don't set setGameOver(true) - we want to prevent the game over screen
                           // Enemy will fall but not bounce, and won't shoot
@@ -535,35 +881,35 @@ export const useGameLoop = () => {
   }, [gameOver]);
 
   const handleJumpStart = useCallback(() => {
-    if (gameOver) return;
+    if (gameOver || !controlsEnabled) return;
     audioManagerRef.current?.initialize();
     audioManagerRef.current?.playJumpSound();
     playerPhysicsRef.current?.startJump();
-  }, [gameOver]);
+  }, [gameOver, controlsEnabled]);
 
   const handleJumpEnd = useCallback(() => {
-    if (gameOver) return;
+    if (gameOver || !controlsEnabled) return;
     playerPhysicsRef.current?.endJump();
     audioManagerRef.current?.resetJumpSound();
-  }, [gameOver]);
+  }, [gameOver, controlsEnabled]);
 
   const handleMouseMove = useCallback((event: MouseEvent) => {
-    if (gameOver) return;
+    if (gameOver || !controlsEnabled) return;
     const dims = dimensionsRef.current;
     playerPhysicsRef.current?.setMousePosition(event.clientX, dims.width);
-  }, [gameOver]);
+  }, [gameOver, controlsEnabled]);
 
   const handleTouchMove = useCallback((event: TouchEvent) => {
-    if (gameOver) return;
+    if (gameOver || !controlsEnabled) return;
     if (event.touches.length > 0) {
       const dims = dimensionsRef.current;
       const touch = event.touches[0];
       playerPhysicsRef.current?.setMousePosition(touch.clientX, dims.width);
     }
-  }, [gameOver]);
+  }, [gameOver, controlsEnabled]);
 
   const handleShoot = useCallback(() => {
-    if (gameOver || !canShoot || energyRef.current <= 0) return;
+    if (gameOver || !canShoot || energyRef.current <= 0 || !controlsEnabled) return;
 
     const now = performance.now();
     const currentEnergy = energyRef.current;
@@ -599,7 +945,7 @@ export const useGameLoop = () => {
     };
 
     setPlayerProjectiles((prev) => [...prev, newProjectile]);
-  }, [gameOver, canShoot]);
+  }, [gameOver, canShoot, controlsEnabled]);
 
   const handleTestScore = useCallback(() => {
     scoreRef.current += 75;
@@ -617,8 +963,8 @@ export const useGameLoop = () => {
     enemyMovementRef.current?.reset(dims.centerY);
     introAnimationStartedRef.current = false; // Allow intro animation to play again
     backgroundStarsRef.current?.reset();
-    forestTreesBackgroundRef.current?.reset();
-    transitioningGroundRef.current?.reset();
+    forestTreesBackgroundRef.current?.reset(); forestTreesBackgroundRef.current?.startTransition();
+    transitioningGroundRef.current?.reset(); transitioningGroundRef.current?.setForestMode(true);
     setPlayerState(playerPhysicsRef.current?.getState() || playerState);
     setLasers(laserPhysicsRef.current?.getLasers() || []);
     setEnemyY(dims.centerY);
@@ -639,6 +985,17 @@ export const useGameLoop = () => {
     setShootGameOver(false);
     setEnergy(0);
     setCanShoot(false);
+    setEnemyX(dims.enemyX);
+    enemyXRef.current = dims.enemyX;
+    isFinalSequenceRef.current = false;
+    isReturningToRightRef.current = false;
+    nextChargeTimeRef.current = 0;
+    chargeActiveRef.current = false;
+    chargeVelocityRef.current = 0;
+    // Reset level transition state
+    isLevelTransitionRef.current = false;
+    levelTransitionStageRef.current = 0;
+    levelTransitionStage1CompleteRef.current = false;
   }, [playerState]);
 
   const testEnergy = useCallback(() => {
@@ -647,6 +1004,24 @@ export const useGameLoop = () => {
     setEnergy(100);
     setCanShoot(true);
     laserPhysicsRef.current?.setScore(100);
+  }, []);
+
+  const handleTestTenOuts = useCallback(() => {
+    if (gameOverRef.current) return;
+
+    // Trigger the slowdown for ground and background
+    transitioningGroundRef.current?.startSlowingDown(3000); // 3 seconds
+    forestTreesBackgroundRef.current?.startSlowingDown(2000); // 2 seconds
+
+    setEnemyOuts(MAX_OUTS);
+    setEnemyInBounceMode(true);
+
+    const currentY = enemyMovementRef.current?.getCurrentY() || dimensionsRef.current.centerY;
+    const initialVelocity = -1;
+    enemyPhysicsRef.current?.enablePhysicsModeWithState(currentY, initialVelocity);
+
+    setIsTenthOut(true);
+    setShootGameOver(true);
   }, []);
 
   const handleToggleSound = useCallback(() => {
@@ -662,6 +1037,7 @@ export const useGameLoop = () => {
     enemyWasHit,
     playerState,
     lasers,
+    enemyX,
     enemyY,
     enemyScale,
     numLasers,
@@ -680,6 +1056,13 @@ export const useGameLoop = () => {
     forestTreesBackground: forestTreesBackgroundRef.current,
     transitioningGround: transitioningGroundRef.current,
     gradientOverlay: gradientOverlayRef.current,
+    cameraX,
+    level,
+    controlsEnabled,
+    levelOverlayVisible,
+    levelOverlaySubtitle,
+    impactAmount,
+    isShaking,
     isMuted,
     handleJumpStart,
     handleJumpEnd,
@@ -690,5 +1073,7 @@ export const useGameLoop = () => {
     handleTestScore,
     handleToggleSound,
     testEnergy,
+    handleTestTenOuts,
   };
 };
+

@@ -19,6 +19,13 @@ export class ScrollingBackground {
   private cachedTileWidth: number = 0;
   private cachedTileHeight: number = 0;
 
+  // Slowdown properties
+  private isSlowingDown: boolean = false;
+  private slowdownStartTime: number = 0;
+  private slowdownDuration: number = 0;
+  private initialSpeed: number = 0;
+  private currentScrollSpeed: number = BACKGROUND_SCROLL_SPEED;
+
   constructor(imagePath: string, lazyLoad: boolean = false) {
     this.imagePath = imagePath;
 
@@ -72,13 +79,52 @@ export class ScrollingBackground {
   }
 
   /**
-   * Update background offset for scrolling animation
+   * Starts the process of slowing down the background scroll speed to zero over a specified duration.
+   * @param duration The time in milliseconds over which to slow down.
+   */
+  startSlowingDown(duration: number): void {
+    if (!this.isSlowingDown) {
+      this.isSlowingDown = true;
+      this.slowdownStartTime = performance.now();
+      this.slowdownDuration = duration;
+      this.initialSpeed = this.currentScrollSpeed;
+    }
+  }
+
+  /**
+   * Immediately pause or resume scrolling without altering offsets.
+   */
+  setPaused(paused: boolean): void {
+    if (paused) {
+      this.isSlowingDown = false;
+      this.currentScrollSpeed = 0;
+    } else {
+      this.isSlowingDown = false;
+      this.currentScrollSpeed = BACKGROUND_SCROLL_SPEED;
+    }
+  }
+
+  /**
+   * Update background offset for scrolling animation. Handles deceleration if triggered.
    */
   update(): void {
     if (!this.imageLoaded) return;
 
+    if (this.isSlowingDown) {
+      const elapsedTime = performance.now() - this.slowdownStartTime;
+      if (elapsedTime < this.slowdownDuration) {
+        const progress = elapsedTime / this.slowdownDuration;
+        // Ease-out quint function for a smoother stop: t => 1 - Math.pow(1 - t, 5)
+        const easing = 1 - Math.pow(1 - progress, 5);
+        this.currentScrollSpeed = this.initialSpeed * (1 - easing);
+      } else {
+        this.currentScrollSpeed = 0;
+        this.isSlowingDown = false;
+      }
+    }
+
     // Move background to the left
-    this.offsetX -= BACKGROUND_SCROLL_SPEED;
+    this.offsetX -= this.currentScrollSpeed;
   }
 
   /**
@@ -139,10 +185,21 @@ export class ScrollingBackground {
   }
 
   /**
-   * Reset background position
+   * Reset background position and scroll speed.
    */
   reset(): void {
     this.offsetX = 0;
+    this.isSlowingDown = false;
+    this.currentScrollSpeed = BACKGROUND_SCROLL_SPEED;
+    this.transitionStarted = false;
+    this.transitionOffsetX = 0;
+  }
+
+  /**
+   * Adjust the scroll offset (used for camera pan positioning)
+   */
+  adjustOffset(deltaX: number): void {
+    this.offsetX += deltaX;
   }
 
   /**

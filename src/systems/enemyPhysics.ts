@@ -136,6 +136,13 @@ export class EnemyPhysics {
   }
 
   /**
+   * Stop bounce mode (for 10th out)
+   */
+  stopBouncing(): void {
+    this.bounceModeActive = false;
+  }
+
+  /**
    * Check if enemy is disabled
    */
   isEnemyDisabled(): boolean {

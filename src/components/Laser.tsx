@@ -10,10 +10,11 @@ interface LaserProps {
   x: number;
   y: number;
   width?: number; // Optional custom width
+  cameraX?: number; // camera pan offset
 }
 
 export const Laser = React.forwardRef<HTMLDivElement, LaserProps>(
-  ({ x, y, width }, ref) => {
+  ({ x, y, width, cameraX = 0 }, ref) => {
     const laserWidth = width || LASER_WIDTH;
 
     return (
@@ -26,8 +27,11 @@ export const Laser = React.forwardRef<HTMLDivElement, LaserProps>(
           backgroundColor: 'red',
           boxShadow: '0 0 10px red',
           borderRadius: '50%',
-          transform: `translate3d(${x}px, ${y}px, 0)`,
-        }}
+          transform: 'translate3d(var(--tx, 0px), var(--ty, 0px), 0)',
+          willChange: 'transform',
+          ['--tx' as any]: `${x - cameraX}px`,
+          ['--ty' as any]: `${y}px`,
+        } as React.CSSProperties & Record<string, string>}
       />
     );
   }

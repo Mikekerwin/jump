@@ -9,6 +9,7 @@ interface ShadowProps {
   growthLevel: number; // Growth level
   maxBlur?: number; // Maximum blur at highest point (default 15px)
   minOpacity?: number; // Minimum opacity at highest point (default 0.2)
+  cameraX?: number; // camera pan offset
 }
 
 export const Shadow: React.FC<ShadowProps> = ({
@@ -20,6 +21,7 @@ export const Shadow: React.FC<ShadowProps> = ({
   growthLevel,
   maxBlur = 15,
   minOpacity = 0.2,
+  cameraX = 0,
 }) => {
   // Character is circular, so height = width
   const characterHeight = characterWidth;
@@ -65,8 +67,9 @@ export const Shadow: React.FC<ShadowProps> = ({
     <div
       style={{
         position: 'absolute',
-        left: `${shadowX}px`,
-        top: `${shadowY}px`,
+        // Use transform translate for positioning to avoid layout thrash
+        top: 0,
+        left: 0,
         width: `${shadowWidth}px`,
         height: `${shadowHeight}px`,
         backgroundColor: 'black',
@@ -75,7 +78,11 @@ export const Shadow: React.FC<ShadowProps> = ({
         filter: `blur(${blur}px)`,
         pointerEvents: 'none',
         zIndex: 0, // Behind characters (players are at default z-index)
-      }}
+        transform: 'translate3d(var(--tx, 0px), var(--ty, 0px), 0)',
+        willChange: 'transform',
+        ['--tx' as any]: `${shadowX - cameraX}px`,
+        ['--ty' as any]: `${shadowY}px`,
+      } as React.CSSProperties & Record<string, string>}
     />
   );
 };

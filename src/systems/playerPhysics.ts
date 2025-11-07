@@ -122,6 +122,13 @@ export class PlayerPhysics {
   }
 
   /**
+   * Directly set the player's X position (used during scripted sequences)
+   */
+  setX(newX: number): void {
+    this.playerState.position.x = newX;
+  }
+
+  /**
    * Start a jump (initial press)
    * Supports double jump - can jump up to 2 times before touching ground
    * Second jump has reduced power (60% of first jump)

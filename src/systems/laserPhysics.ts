@@ -70,6 +70,13 @@ export class LaserPhysics {
     return this.laserWidth;
   }
 
+  /**
+   * Adjust base laser speed (used for level progression)
+   */
+  setBaseSpeed(speed: number): void {
+    this.baseSpeed = speed;
+  }
+
   private generateRandomLaserY(score: number, playerY?: number): number {
     if (score >= 75 && playerY !== undefined && this.lasersSinceLock >= 5) {
       this.lasersSinceLock = 0;
@@ -153,7 +160,8 @@ export class LaserPhysics {
     playerGrowthLevel: number,
     isEnemyInHoverMode: boolean = true,
     isEnemyDisabled: boolean = false,
-    hasCompletedIntro: boolean = true // NEW: Prevents laser firing during initial intro animation only
+    hasCompletedIntro: boolean = true, // NEW: Prevents laser firing during initial intro animation only
+    stopSpawning: boolean = false
   ): { scoreChange: number; wasHit: boolean; enemyHitCount: number; laserFired: boolean; targetY: number | null } {
     this.currentScore = score;
     this.updateLaserCount(score);
@@ -180,8 +188,8 @@ export class LaserPhysics {
     const now = Date.now();
 
     // Spawn lasers during gameplay (hover OR bounce mode), but NOT when disabled or during initial intro
-    // hasCompletedIntro prevents lasers ONLY during initial intro, not during later bounce mode transitions
-    if (!isEnemyDisabled && hasCompletedIntro && now - this.lastLaserFireTime > fireDelay) {
+    // Also stop spawning when stopSpawning is true (e.g., 10th out / final sequence)
+    if (!stopSpawning && !isEnemyDisabled && hasCompletedIntro && now - this.lastLaserFireTime > fireDelay) {
       const inactiveLaser = this.lasers.find(l => l.x < -this.laserWidth);
       if (inactiveLaser) {
         this.lastLaserFireTime = now;
@@ -205,9 +213,8 @@ export class LaserPhysics {
     }
 
     this.lasers.forEach((laser, laserIndex) => {
-      // Move and process lasers during hover mode or bounce mode (but not when disabled)
-      if (isEnemyInHoverMode || !isEnemyDisabled) {
-        laser.x -= currentSpeed;
+      // Always move and process existing lasers so they complete their path off-screen
+      laser.x -= currentSpeed;
 
         if (!laser.hit && !laser.passed && playerPosition.x > laser.x + this.laserWidth) {
           laser.passed = true;
@@ -248,7 +255,6 @@ export class LaserPhysics {
           }
           laser.x = -1000;
         }
-      }
     });
 
     return { scoreChange, wasHit, enemyHitCount, laserFired, targetY };
