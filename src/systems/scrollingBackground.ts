@@ -167,18 +167,22 @@ export class ScrollingBackground {
     // Start the forest at the right edge and scroll it in
     const forestStartX = canvasWidth - scrolledSinceTransition;
 
+    // To guarantee coverage under large camera pans, expand draw range by one tile on both sides
+    const leftMargin = -scaledWidth;
+    const rightMargin = canvasWidth + scaledWidth;
+
     // Check if we've scrolled far enough that the forest should loop
     if (forestStartX + scaledWidth < 0) {
       // Forest has fully scrolled in - now loop normally
       const wrappedOffsetX = this.offsetX % scaledWidth;
-      for (let x = wrappedOffsetX; x < canvasWidth + 1; x += scaledWidth) {
-        // Draw cached tile instead of original image
+      for (let x = wrappedOffsetX + leftMargin; x < rightMargin; x += scaledWidth) {
         ctx.drawImage(this.cachedTile, x, 0);
       }
     } else {
-      // Still scrolling in - draw forest tiles starting from forestStartX
-      for (let x = forestStartX; x < canvasWidth + 1; x += scaledWidth) {
-        // Draw cached tile instead of original image
+      // Still scrolling in - only draw from the visible right edge inward
+      // Avoid drawing a left tile that would prematurely cover the whole screen
+      const start = Math.max(forestStartX, 0);
+      for (let x = start; x < rightMargin; x += scaledWidth) {
         ctx.drawImage(this.cachedTile, x, 0);
       }
     }

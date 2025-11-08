@@ -379,7 +379,7 @@ const App: React.FC = () => {
         scaleY={enemyScale.scaleY}
         growthLevel={enemyGrowthLevel}
         isHit={enemyWasHit}
-        onShoot={score >= 100 ? handleShoot : undefined}
+        onShoot={canShoot ? handleShoot : undefined}
         ballSize={dimensions.ballSize}
         cameraX={cameraX}
       />
@@ -523,29 +523,28 @@ const App: React.FC = () => {
 
       {gameOver && <GameOver onRestart={handleRestart} shootGameOver={shootGameOver} />}
 
-      {/* Level Overlay */}
-      {levelOverlayVisible && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexDirection: 'column',
-            color: 'white',
-            textAlign: 'center',
-            fontFamily: 'monospace',
-            pointerEvents: 'none',
-            opacity: levelOverlayVisible ? 1 : 0,
-            transition: 'opacity 600ms ease',
-            zIndex: 2000,
-          }}
-        >
-          <div style={{ fontSize: '6rem', textShadow: '0 0 20px #fff' }}>Jump!</div>
-          <div style={{ fontSize: '2.5rem', marginTop: '10px', opacity: 0.9 }}>{levelOverlaySubtitle}</div>
-        </div>
-      )}
+      {/* Level Overlay (always mounted for fade-in/out) */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexDirection: 'column',
+          color: 'white',
+          textAlign: 'center',
+          fontFamily: 'monospace',
+          pointerEvents: 'none',
+          opacity: levelOverlayVisible ? 1 : 0,
+          transition: 'opacity 600ms ease',
+          willChange: 'opacity',
+          zIndex: 2000,
+        }}
+      >
+        <div style={{ fontSize: '6rem', textShadow: '0 0 20px #fff' }}>Jump!</div>
+        <div style={{ fontSize: '2.5rem', marginTop: '10px', opacity: 0.9 }}>{levelOverlaySubtitle}</div>
+      </div>
 
       {/* Sound Toggle Button */}
       <SoundToggleButton isMuted={isMuted} onToggle={handleToggleSound} />

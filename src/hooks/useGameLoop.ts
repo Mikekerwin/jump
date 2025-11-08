@@ -133,6 +133,7 @@ export const useGameLoop = () => {
   const forestTreesBackgroundRef = useRef<ScrollingBackground | null>(null);
   const transitioningGroundRef = useRef<TransitioningGround | null>(null);
   const gradientOverlayRef = useRef<GradientOverlay | null>(null);
+  const groundPrewarmedRef = useRef(false);
 
   const introAnimationStartedRef = useRef(false);
 
@@ -240,6 +241,9 @@ export const useGameLoop = () => {
     transitioningGroundRef.current = new TransitioningGround(CLOUD_GROUND_IMAGE_PATH, TRANSITION_GROUND_IMAGE_PATH, FOREST_GROUND_IMAGE_PATH);
     gradientOverlayRef.current = new GradientOverlay();
 
+    // Prewarm ground caches once dimensions are known
+    transitioningGroundRef.current.prewarm(dims.width, dims.height);
+
     setPlayerState(playerPhysicsRef.current.getState());
     setLasers(laserPhysicsRef.current.getLasers());
     setEnemyY(dims.centerY);
@@ -334,12 +338,17 @@ export const useGameLoop = () => {
     const loop = () => {
       if (gameOverRef.current) return;
 
-      // Update forest background when score >= 100 OR during level transition
-      if (scoreRef.current >= 100 || isLevelTransitionRef.current) {
-        forestTreesBackgroundRef.current?.update();
-      }
+      // Always update forest background; it renders only after transition starts
+      forestTreesBackgroundRef.current?.update();
       transitioningGroundRef.current?.update(scoreRef.current);
       backgroundStarsRef.current?.update();
+
+      // Prewarm ground shortly before unlock if not yet done
+      if (!groundPrewarmedRef.current && scoreRef.current >= 90) {
+        const dims = dimensionsRef.current;
+        transitioningGroundRef.current?.prewarm(dims.width, dims.height);
+        groundPrewarmedRef.current = true;
+      }
       laserPhysicsRef.current?.updateLaserCount(scoreRef.current);
       setNumLasers(laserPhysicsRef.current?.getNumLasers() || 1);
 
@@ -636,6 +645,7 @@ export const useGameLoop = () => {
             setPlayerOuts(0);
             setEnemyOuts(0);
             setShootGameOver(false);
+            // Reset energy and shooting unlock for the new level
             setEnergy(0);
             setCanShoot(false);
             setIsTenthOut(false); // Reset 10th out flag
@@ -770,6 +780,23 @@ export const useGameLoop = () => {
         ? (enemyMovementRef.current?.getCurrentY() || dimensionsRef.current.centerY)
         : (enemyPhysicsRef.current?.getY() || dimensionsRef.current.centerY);
 
+      // Allow enemy lasers immediately on levels > 1 even if the re-intro hasn't flagged complete yet
+      const allowEnemyLasers = (levelRef.current > 1) || (enemyPhysicsRef.current?.hasCompletedIntro() || false);
+
+      // Keep LaserPhysics enemyX synced with on-screen enemy position (accounts for camera pans and transitions)
+      {
+        const dims = dimensionsRef.current;
+        laserPhysicsRef.current?.updateDimensions(
+          dims.width,
+          dims.height,
+          dims.centerY,
+          enemyXRef.current, // current world X of enemy
+          dims.ballSize,
+          dims.laserWidth,
+          dims.laserHeight
+        );
+      }
+
       const laserUpdate = laserPhysicsRef.current?.update(
         scoreRef.current,
         newPlayerState?.position || { x: 0, y: 0 },
@@ -778,7 +805,7 @@ export const useGameLoop = () => {
         playerGrowthLevelRef.current,
         enemyPhysicsRef.current?.isHoverMode() || false,
         enemyPhysicsRef.current?.isEnemyDisabled() || false,
-        enemyPhysicsRef.current?.hasCompletedIntro() || false,
+        allowEnemyLasers,
         // Stop spawning lasers during 10th-out final sequence, but allow existing lasers to finish
         isTenthOutRef.current || isFinalSequenceRef.current || isLevelTransitionRef.current
       );
@@ -1021,7 +1048,8 @@ export const useGameLoop = () => {
     introAnimationStartedRef.current = false; // Allow intro animation to play again
     backgroundStarsRef.current?.reset();
     forestTreesBackgroundRef.current?.reset(); forestTreesBackgroundRef.current?.startTransition();
-    transitioningGroundRef.current?.reset(); transitioningGroundRef.current?.setForestMode(true);
+    transitioningGroundRef.current?.reset();
+    transitioningGroundRef.current?.setForestMode(false); // Show proper cloud->transition->forest sequence on Level 1
     setPlayerState(playerPhysicsRef.current?.getState() || playerState);
     setLasers(laserPhysicsRef.current?.getLasers() || []);
     setEnemyY(dims.centerY);
@@ -1059,6 +1087,11 @@ export const useGameLoop = () => {
     scoreRef.current = 100;
     setScore(100);
     setEnergy(100);
+    // Ensure the ground shows the transition tile next (no immediate forest-only)
+    transitioningGroundRef.current?.restartTransition();
+    // Prewarm caches immediately for a seamless first frame
+    const dims = dimensionsRef.current;
+    transitioningGroundRef.current?.prewarm(dims.width, dims.height);
     setCanShoot(true);
     laserPhysicsRef.current?.setScore(100);
   }, []);
