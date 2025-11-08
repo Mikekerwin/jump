@@ -23,6 +23,7 @@ export const GameOver: React.FC<GameOverProps> = ({ onRestart, shootGameOver }) 
         color: shootGameOver ? '#4fc3f7' : 'white',
         fontSize: '8rem',
         fontWeight: 'bold',
+        fontFamily: 'Georgia, "Times New Roman", Times, serif',
         cursor: 'pointer',
         textShadow: shootGameOver ? '0 0 20px #4fc3f7' : 'none',
       }}

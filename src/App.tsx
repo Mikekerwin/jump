@@ -135,28 +135,23 @@ const App: React.FC = () => {
     const renderLoop = () => {
       // Clear canvas
       ctx.clearRect(0, 0, dimensions.width, dimensions.height);
+      const cameraOffset = cameraXRef.current;
 
-      // Apply camera pan for backgrounds
+      // Background layers (move with camera)
       ctx.save();
-      // Use ref to avoid stale closure and restart churn
-      ctx.translate(-cameraXRef.current, 0);
-
-      // 1. Render static cloud sky (always present, doesn't scroll)
+      ctx.translate(-cameraOffset, 0);
       staticCloudSky.render(ctx, dimensions.width, dimensions.height);
-
-      // 2. Render forest trees scrolling background (scrolls in from right at score 100)
       forestTreesBackground.render(ctx, dimensions.width, dimensions.height);
-
-      // 3. Render gradient overlay (black to transparent from bottom to top) - behind stars
       gradientOverlay.render(ctx, dimensions.width, dimensions.height);
+      ctx.restore();
 
-      // 4. Render WebGL dust layer (composited via offscreen canvas)
+      // Dust layer (screen aligned so it doesn't vanish during camera pans)
       forestDustField?.render(ctx, dimensions.width, dimensions.height);
 
-      // 5. Render transitioning ground (cloud ground + forest ground at score 100) - on top of everything
+      // Ground layer (moves with camera)
+      ctx.save();
+      ctx.translate(-cameraOffset, 0);
       transitioningGround.render(ctx, dimensions.width, dimensions.height, score);
-
-      // Restore camera transform
       ctx.restore();
 
       if (!gameOver) {
@@ -520,7 +515,7 @@ const App: React.FC = () => {
           flexDirection: 'column',
           color: 'white',
           textAlign: 'center',
-          fontFamily: 'monospace',
+          fontFamily: 'Georgia, "Times New Roman", Times, serif',
           pointerEvents: 'none',
           opacity: levelOverlayVisible ? 1 : 0,
           transition: 'opacity 600ms ease',
@@ -542,7 +537,6 @@ const App: React.FC = () => {
 };
 
 export default App;
-
 
 
 

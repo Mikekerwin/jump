@@ -727,7 +727,7 @@ export class ForestDustField {
   /**
    * Render the dust field to the provided 2D context (composited between background and ground).
    */
-  render(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+  render(ctx: CanvasRenderingContext2D, width: number, height: number, cameraOffset: number = 0): void {
     if (this.opacity <= 0.001) return;
     if (!this.ensureGLResources() || !this.canvas) return;
 
@@ -735,13 +735,13 @@ export class ForestDustField {
       this.updateDimensions(width, height);
     }
 
-    this.draw();
+    this.draw(cameraOffset);
     ctx.drawImage(this.canvas, 0, 0, width, height);
   }
 
   private drawCallCount = 0;
 
-  private draw(): void {
+  private draw(cameraOffset: number = 0): void {
     if (!this.gl || !this.program || !this.canvas) return;
     const gl = this.gl;
 
@@ -773,7 +773,8 @@ export class ForestDustField {
 
     const scrollLoc = this.uniformLocations.scroll;
     if (scrollLoc) {
-      gl.uniform1f(scrollLoc, this.scrollOffset);
+      // Add camera offset to scroll to compensate for camera transform
+      gl.uniform1f(scrollLoc, this.scrollOffset + cameraOffset);
     }
 
     const elapsedSeconds = ((typeof performance !== 'undefined' ? performance.now() : 0) - this.startTime) / 1000;

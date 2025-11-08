@@ -385,7 +385,9 @@ export const useGameLoop = () => {
       forestTreesBackgroundRef.current?.update();
       transitioningGroundRef.current?.update(scoreRef.current);
       forestDustFieldRef.current?.update();
-      if (forestTreesBackgroundRef.current && forestDustFieldRef.current) {
+      // Only update reveal progress automatically during normal gameplay (not during level transitions)
+      // During level transitions, reveal progress is managed manually
+      if (!isLevelTransitionRef.current && forestTreesBackgroundRef.current && forestDustFieldRef.current) {
         const transitionProgress = forestTreesBackgroundRef.current.getTransitionProgress(dims.width, dims.height);
         forestDustFieldRef.current.setRevealProgress(transitionProgress);
       }
@@ -679,6 +681,9 @@ export const useGameLoop = () => {
             // Make sure forest background transition has started (should already be running from score 100)
             ensureForestBackgroundActive();
 
+            // Level 2+ starts in the forest, so dust field should be fully visible
+            forestDustFieldRef.current?.setRevealProgress(1);
+
             const latestState = playerPhysicsRef.current?.getState();
             if (latestState) {
               setPlayerState(latestState);
@@ -822,6 +827,8 @@ export const useGameLoop = () => {
             // Resume background/ground scroll for next level
             forestTreesBackgroundRef.current?.setPaused(false);
             transitioningGroundRef.current?.setPaused(false);
+            // Ensure dust field remains fully visible after level transition
+            forestDustFieldRef.current?.setRevealProgress(1);
             isLevelTransitionRef.current = false;
             levelTransitionStageRef.current = 0;
             levelTransitionStage1CompleteRef.current = false; // Reset for next transition
