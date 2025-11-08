@@ -30,7 +30,6 @@ import LoadingScreen from './components/LoadingScreen';
 import { OutIndicators } from './components/OutIndicators';
 import { useImagePreloader } from './hooks/useImagePreloader';
 import {
-  STARS_ENABLED,
   GROWTH_SCALE_PER_LEVEL,
   CLOUD_SKY_IMAGE_PATH,
   CLOUD_GROUND_IMAGE_PATH,
@@ -75,13 +74,11 @@ const App: React.FC = () => {
     playerGrowthLevel,
     enemyGrowthLevel,
     dimensions,
-    backgroundStars,
+    forestDustField,
     staticCloudSky,
     forestTreesBackground,
     transitioningGround,
     gradientOverlay,
-    level,
-    controlsEnabled,
     levelOverlayVisible,
     levelOverlaySubtitle,
     impactAmount,
@@ -125,19 +122,10 @@ const App: React.FC = () => {
   }, []);
 
   /**
-   * Start forest background transition when score hits 100
-   */
-  useEffect(() => {
-    if (score >= 100 && forestTreesBackground) {
-      forestTreesBackground.startTransition();
-    }
-  }, [score, forestTreesBackground]);
-
-  /**
    * Render progressive background system: clouds → forest transition at score 100
    */
   useEffect(() => {
-    if (!canvasRef.current || !backgroundStars || !staticCloudSky || !forestTreesBackground || !transitioningGround || !gradientOverlay) return;
+    if (!canvasRef.current || !staticCloudSky || !forestTreesBackground || !transitioningGround || !gradientOverlay) return;
 
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx) return;
@@ -162,10 +150,8 @@ const App: React.FC = () => {
       // 3. Render gradient overlay (black to transparent from bottom to top) - behind stars
       gradientOverlay.render(ctx, dimensions.width, dimensions.height);
 
-      // 4. Render stars on top of gradient, behind ground (if enabled)
-      if (STARS_ENABLED) {
-        backgroundStars.render(ctx);
-      }
+      // 4. Render WebGL dust layer (composited via offscreen canvas)
+      forestDustField?.render(ctx, dimensions.width, dimensions.height);
 
       // 5. Render transitioning ground (cloud ground + forest ground at score 100) - on top of everything
       transitioningGround.render(ctx, dimensions.width, dimensions.height, score);
@@ -185,7 +171,7 @@ const App: React.FC = () => {
         cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [backgroundStars, staticCloudSky, forestTreesBackground, transitioningGround, gradientOverlay, gameOver, dimensions]);
+  }, [forestDustField, staticCloudSky, forestTreesBackground, transitioningGround, gradientOverlay, gameOver, dimensions, score]);
 
   /**
    * Setup input controls
@@ -556,12 +542,6 @@ const App: React.FC = () => {
 };
 
 export default App;
-
-
-
-
-
-
 
 
 

@@ -285,8 +285,6 @@ export class TransitioningGround {
     // Transition appears when we've scrolled enough to reach that boundary
     const transitionStartX = nextBoundaryFromTransitionStart - scrolledSinceTransition;
 
-    console.log('🌲 Render transition - scrolled:', scrolledSinceTransition.toFixed(1), 'transitionStartX:', transitionStartX.toFixed(1), 'boundary:', nextBoundaryFromTransitionStart.toFixed(1));
-
     // Draw cloud tiles up to where the transition starts
     if (transitionStartX > 0) {
       // Clouds are still visible - draw with expanded margins for camera pan coverage
@@ -381,6 +379,29 @@ export class TransitioningGround {
    */
   updateDimensions(_width: number, _height: number): void {
     // Ground scales automatically based on canvas size
+  }
+
+  /**
+   * Check if the transition tile midpoint is currently visible on screen
+   * Returns true once when midpoint enters the screen
+   */
+  isTransitionMidpointReached(screenWidth: number): boolean {
+    if (!this.transitionStarted) return false;
+
+    // Calculate where the transition tile starts
+    const transitionStartX = this.transitionOffsetX;
+
+    // Current scroll position
+    const currentX = this.offsetX;
+
+    // The transition tile is one full tile width
+    const tileWidth = this.transitionImageWidth || screenWidth;
+    const transitionMidpoint = transitionStartX + tileWidth / 2;
+
+    // Check if we've scrolled past the midpoint
+    // Since offsetX decreases as we scroll (things move right to left),
+    // the midpoint is "reached" when offsetX <= transitionMidpoint
+    return currentX <= transitionMidpoint;
   }
 }
 

@@ -128,7 +128,66 @@ export const CHAOS_MULTIPLIER_PER_INTERVAL = 0.0; // No additional randomness (a
 // 🌌 BACKGROUND CONFIGURATION
 export const NUM_STARS = 90;
 export const STAR_SPEED = 1;
-export const STARS_ENABLED = false; // Toggle stars on/off (disabled due to performance)
+export const STARS_ENABLED = false; // Toggle stars on/off (legacy system, replaced by forest dust WebGL layer)
+
+// Forest dust / starfield WebGL layer configuration
+export const FOREST_DUST_ENABLED = true;
+export const FOREST_DUST_PARTICLE_COUNT = 90; // Increased for denser small dust
+export const FOREST_DUST_SCROLL_SPEED = 0.055; // Pixels per ms (scaled in shader for parallax)
+export const FOREST_DUST_FADE_IN_DURATION = 2400; // ms
+export const FOREST_DUST_FADE_OUT_DURATION = 1200; // ms
+export const FOREST_DUST_COLOR = { r: 0.95, g: 0.82, b: 0.65 };
+export type ForestDustBucket = {
+  ratio: number;
+  minSizePercent: number; // Size as percentage of screen height
+  maxSizePercent: number;
+  minDepth: number;
+  maxDepth: number;
+  blur: number;
+  clustered: boolean;
+  minHeightPercent: number; // 0 = bottom
+  maxHeightPercent: number;
+};
+export const FOREST_DUST_BUCKETS: ForestDustBucket[] = [
+  // Small particles (sharp, energetic) - ~75% of particles
+  {
+    ratio: 0.80,
+    minSizePercent: 0.0018, // 0.18% of screen height (≈2px on 1100px screen)
+    maxSizePercent: 0.01,  // 0.6% of screen height
+    minDepth: 0.08,
+    maxDepth: 0.35,
+    blur: 0.05, // Crisp
+    clustered: false,
+    minHeightPercent: 0.10,
+    maxHeightPercent: 0.50,
+  },
+  // Medium particles (soft glow) - ~15% of particles
+  {
+    ratio: 0.17,
+    minSizePercent: 0.025,
+    maxSizePercent: 0.06,
+    minDepth: 0.45,
+    maxDepth: 0.7,
+    blur: 0.7,
+    clustered: false,
+    minHeightPercent: 0.1,
+    maxHeightPercent: 0.32,
+  },
+  // Large particles (bokeh) - ~5% of particles
+  {
+    ratio: 0.08,
+    minSizePercent: 0.12,
+    maxSizePercent: 0.22,
+    minDepth: 0.8,
+    maxDepth: 1.0,
+    blur: 0.85,
+    clustered: false,
+    minHeightPercent: 0.1,
+    maxHeightPercent: 0.22,
+  },
+];
+export const FOREST_DUST_SMALL_CLUSTER_COUNT = 10;
+export const FOREST_DUST_SMALL_CLUSTER_RADIUS = 140;
 
 // Cloud background configuration (score 0-100)
 export const CLOUD_SKY_IMAGE_PATH = process.env.PUBLIC_URL
@@ -144,6 +203,9 @@ export const TRANSITION_GROUND_IMAGE_PATH = process.env.PUBLIC_URL
   : '/cloud_light_ground_forest_transition.webp';
 
 // Forest background configuration (score 100+)
+export const FOREST_TRANSITION_IMAGE_PATH = process.env.PUBLIC_URL
+  ? `${process.env.PUBLIC_URL}/forestTransition.webp`
+  : '/forestTransition.webp';
 export const FOREST_TREES_IMAGE_PATH = process.env.PUBLIC_URL
   ? `${process.env.PUBLIC_URL}/forest_light_trees.webp`
   : '/forest_light_trees.webp';

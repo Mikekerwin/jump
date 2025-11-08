@@ -10,7 +10,7 @@ import { LaserPhysics } from '../systems/laserPhysics';
 import { EnemyPhysics } from '../systems/enemyPhysics';
 import { EnemyMovement } from '../systems/enemyMovement';
 import { AudioManager, setupAudioUnlock } from '../systems/audioManager';
-import { BackgroundStars } from '../systems/backgroundStars';
+import { ForestDustField } from '../systems/forestDustField';
 import { StaticBackground } from '../systems/staticBackground';
 import { ScrollingBackground } from '../systems/scrollingBackground';
 import { TransitioningGround } from '../systems/transitioningGround';
@@ -29,17 +29,20 @@ import { PlayerState, LaserState, PlayerProjectile } from '../types/game';
     CLOUD_SKY_IMAGE_PATH,
     CLOUD_GROUND_IMAGE_PATH,
     TRANSITION_GROUND_IMAGE_PATH,
+    FOREST_TRANSITION_IMAGE_PATH,
     FOREST_TREES_IMAGE_PATH,
     FOREST_GROUND_IMAGE_PATH,
-  GROUND_HEIGHT_EXTENSION_PERCENT,
-  MAX_GROWTH_LEVELS,
-  GROWTH_SCALE_PER_LEVEL,
-  INTRO_ANIMATION_DELAY,
-  calculateResponsiveBallSize,
-  calculateHorizontalRanges,
-  calculateResponsiveLaserSize,
-  calculateResponsiveFloorPosition,
-  calculateResponsivePhysics,
+    GROUND_HEIGHT_EXTENSION_PERCENT,
+    MAX_GROWTH_LEVELS,
+    GROWTH_SCALE_PER_LEVEL,
+    INTRO_ANIMATION_DELAY,
+    FOREST_UNLOCK_SCORE,
+    FOREST_DUST_ENABLED,
+    calculateResponsiveBallSize,
+    calculateHorizontalRanges,
+    calculateResponsiveLaserSize,
+    calculateResponsiveFloorPosition,
+    calculateResponsivePhysics,
 } from '../config/gameConfig';
 
 // Shooting speed configuration (in milliseconds)
@@ -128,11 +131,30 @@ export const useGameLoop = () => {
   const enemyPhysicsRef = useRef<EnemyPhysics | null>(null);
   const enemyMovementRef = useRef<EnemyMovement | null>(null);
   const audioManagerRef = useRef<AudioManager | null>(null);
-  const backgroundStarsRef = useRef<BackgroundStars | null>(null);
   const staticCloudSkyRef = useRef<StaticBackground | null>(null);
   const forestTreesBackgroundRef = useRef<ScrollingBackground | null>(null);
   const transitioningGroundRef = useRef<TransitioningGround | null>(null);
   const gradientOverlayRef = useRef<GradientOverlay | null>(null);
+  const forestDustFieldRef = useRef<ForestDustField | null>(null);
+  const forestDustActiveRef = useRef(false);
+  const forestUnlockedRef = useRef(false);
+
+  const triggerForestDustReveal = useCallback(() => {
+    if (!FOREST_DUST_ENABLED || forestDustActiveRef.current) return;
+    forestDustFieldRef.current?.triggerReveal();
+    forestDustActiveRef.current = true;
+  }, []);
+
+  const resetForestDust = useCallback(() => {
+    if (!FOREST_DUST_ENABLED) return;
+    forestDustFieldRef.current?.reset();
+    forestDustActiveRef.current = false;
+  }, []);
+
+  const ensureForestBackgroundActive = useCallback(() => {
+    forestTreesBackgroundRef.current?.startTransition();
+    triggerForestDustReveal();
+  }, [triggerForestDustReveal]);
   const groundPrewarmedRef = useRef(false);
 
   const introAnimationStartedRef = useRef(false);
@@ -235,11 +257,18 @@ export const useGameLoop = () => {
     audioManagerRef.current = new AudioManager();
     const cleanupAudio = setupAudioUnlock(audioManagerRef.current);
 
-    backgroundStarsRef.current = new BackgroundStars(dims.width, dims.height);
     staticCloudSkyRef.current = new StaticBackground(CLOUD_SKY_IMAGE_PATH);
-    forestTreesBackgroundRef.current = new ScrollingBackground(FOREST_TREES_IMAGE_PATH, false);
+    forestTreesBackgroundRef.current = new ScrollingBackground(FOREST_TREES_IMAGE_PATH, false, FOREST_TRANSITION_IMAGE_PATH);
     transitioningGroundRef.current = new TransitioningGround(CLOUD_GROUND_IMAGE_PATH, TRANSITION_GROUND_IMAGE_PATH, FOREST_GROUND_IMAGE_PATH);
     gradientOverlayRef.current = new GradientOverlay();
+    console.log('[GameLoop] FOREST_DUST_ENABLED:', FOREST_DUST_ENABLED);
+    if (FOREST_DUST_ENABLED) {
+      console.log('[GameLoop] Creating ForestDustField with dimensions:', dims.width, 'x', dims.height);
+      forestDustFieldRef.current = new ForestDustField(dims.width, dims.height);
+      console.log('[GameLoop] ForestDustField created:', forestDustFieldRef.current);
+    } else {
+      forestDustFieldRef.current = null;
+    }
 
     // Prewarm ground caches once dimensions are known
     transitioningGroundRef.current.prewarm(dims.width, dims.height);
@@ -278,6 +307,14 @@ export const useGameLoop = () => {
   useEffect(() => {
     levelRef.current = level;
   }, [level]);
+
+  useEffect(() => {
+    if (forestUnlockedRef.current) return;
+    if (score >= FOREST_UNLOCK_SCORE) {
+      forestUnlockedRef.current = true;
+      ensureForestBackgroundActive();
+    }
+  }, [score, ensureForestBackgroundActive]);
   useEffect(() => {
     cameraXRef.current = cameraX;
   }, [cameraX]);
@@ -318,7 +355,7 @@ export const useGameLoop = () => {
         dims.laserWidth,
         dims.laserHeight
       );
-      backgroundStarsRef.current?.updateDimensions(dims.width, dims.height);
+      forestDustFieldRef.current?.updateDimensions(dims.width, dims.height);
       transitioningGroundRef.current?.updateDimensions(dims.width, dims.height);
     };
 
@@ -338,10 +375,28 @@ export const useGameLoop = () => {
     const loop = () => {
       if (gameOverRef.current) return;
 
+      const dims = dimensionsRef.current;
+
+      if (!forestDustActiveRef.current && forestTreesBackgroundRef.current?.hasStartedTransition()) {
+        triggerForestDustReveal();
+      }
+
       // Always update forest background; it renders only after transition starts
       forestTreesBackgroundRef.current?.update();
       transitioningGroundRef.current?.update(scoreRef.current);
-      backgroundStarsRef.current?.update();
+      forestDustFieldRef.current?.update();
+      if (forestTreesBackgroundRef.current && forestDustFieldRef.current) {
+        const transitionProgress = forestTreesBackgroundRef.current.getTransitionProgress(dims.width, dims.height);
+        forestDustFieldRef.current.setRevealProgress(transitionProgress);
+      }
+
+      // Check if forest background transition is visible and trigger dust reveal
+      if (FOREST_DUST_ENABLED && !forestDustActiveRef.current && forestTreesBackgroundRef.current) {
+        const dims = dimensionsRef.current;
+        if (forestTreesBackgroundRef.current.isTransitionImageVisible(dims.width)) {
+          triggerForestDustReveal();
+        }
+      }
 
       // Prewarm ground shortly before unlock if not yet done
       if (!groundPrewarmedRef.current && scoreRef.current >= 90) {
@@ -616,17 +671,18 @@ export const useGameLoop = () => {
             enemyPhysicsRef.current?.reset(dims.centerY);
             enemyMovementRef.current?.reset(dims.centerY);
             introAnimationStartedRef.current = false;
-            backgroundStarsRef.current?.reset();
-
             // Set up forest background for level 2+
             // Don't reset - keep backgrounds scrolling continuously from level 1
             // This ensures forest is already visible and scrolling
             transitioningGroundRef.current?.setForestMode(true);
 
             // Make sure forest background transition has started (should already be running from score 100)
-            forestTreesBackgroundRef.current?.startTransition();
+            ensureForestBackgroundActive();
 
-            setPlayerState(playerPhysicsRef.current?.getState() || playerState);
+            const latestState = playerPhysicsRef.current?.getState();
+            if (latestState) {
+              setPlayerState(latestState);
+            }
             setLasers(laserPhysicsRef.current?.getLasers() || []);
             setEnemyY(dims.centerY);
             setNumLasers(1);
@@ -962,7 +1018,7 @@ export const useGameLoop = () => {
 
     animationFrameId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [gameOver]);
+  }, [gameOver, ensureForestBackgroundActive, triggerForestDustReveal]);
 
   const handleJumpStart = useCallback(() => {
     if (gameOver || !controlsEnabled) return;
@@ -1046,11 +1102,15 @@ export const useGameLoop = () => {
     enemyPhysicsRef.current?.reset(dims.centerY);
     enemyMovementRef.current?.reset(dims.centerY);
     introAnimationStartedRef.current = false; // Allow intro animation to play again
-    backgroundStarsRef.current?.reset();
-    forestTreesBackgroundRef.current?.reset(); forestTreesBackgroundRef.current?.startTransition();
+    forestTreesBackgroundRef.current?.reset();
     transitioningGroundRef.current?.reset();
     transitioningGroundRef.current?.setForestMode(false); // Show proper cloud->transition->forest sequence on Level 1
-    setPlayerState(playerPhysicsRef.current?.getState() || playerState);
+    forestUnlockedRef.current = false;
+    resetForestDust();
+    const resetState = playerPhysicsRef.current?.getState();
+    if (resetState) {
+      setPlayerState(resetState);
+    }
     setLasers(laserPhysicsRef.current?.getLasers() || []);
     setEnemyY(dims.centerY);
     setNumLasers(1);
@@ -1081,7 +1141,7 @@ export const useGameLoop = () => {
     isLevelTransitionRef.current = false;
     levelTransitionStageRef.current = 0;
     levelTransitionStage1CompleteRef.current = false;
-  }, [playerState]);
+  }, [resetForestDust]);
 
   const testEnergy = useCallback(() => {
     scoreRef.current = 100;
@@ -1141,7 +1201,7 @@ export const useGameLoop = () => {
     playerGrowthLevel: animatedPlayerGrowthLevel,
     enemyGrowthLevel: animatedEnemyGrowthLevel,
     dimensions: dimensionsRef.current,
-    backgroundStars: backgroundStarsRef.current,
+    forestDustField: forestDustFieldRef.current,
     staticCloudSky: staticCloudSkyRef.current,
     forestTreesBackground: forestTreesBackgroundRef.current,
     transitioningGround: transitioningGroundRef.current,
@@ -1166,4 +1226,3 @@ export const useGameLoop = () => {
     handleTestTenOuts,
   };
 };
-
