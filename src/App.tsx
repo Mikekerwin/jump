@@ -55,6 +55,7 @@ const App: React.FC = () => {
 
   const {
     score,
+    cumulativeScore,
     gameOver,
     hitCount,
     enemyHits,
@@ -122,7 +123,7 @@ const App: React.FC = () => {
   }, []);
 
   /**
-   * Render progressive background system: clouds → forest transition at score 100
+   * Render progressive background system: clouds → forest transition at score 50
    */
   useEffect(() => {
     if (!canvasRef.current || !staticCloudSky || !forestTreesBackground || !transitioningGround || !gradientOverlay) return;
@@ -180,7 +181,7 @@ const App: React.FC = () => {
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 's' || e.key === 'S') {
-        handleShoot(); // Shoot with 'S' key (score 100+)
+        handleShoot(); // Shoot with 'S' key (score 50+)
       } else {
         handleJumpStart(); // Jump with any other key
       }
@@ -413,7 +414,7 @@ const App: React.FC = () => {
           </button>
 
           {/* Score Display */}
-          <ScoreDisplay score={score} />
+          <ScoreDisplay score={cumulativeScore} />
 
           {/* Player Hit Counter (Shows after unlocking shooting) */}
           {canShoot && !gameOver && (
@@ -537,6 +538,5 @@ const App: React.FC = () => {
 };
 
 export default App;
-
 
 

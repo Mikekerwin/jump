@@ -52,6 +52,7 @@ const MIN_SHOOT_SPEED = 350; // Slowest shooting rate at 20% energy or below
 export const useGameLoop = () => {
   // Game state
   const [score, setScore] = useState(0);
+  const [cumulativeScore, setCumulativeScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [playerState, setPlayerState] = useState<PlayerState>({
     position: { x: 0, y: 0 },
@@ -160,6 +161,7 @@ export const useGameLoop = () => {
   const introAnimationStartedRef = useRef(false);
 
   const scoreRef = useRef(0);
+  const totalScoreRef = useRef(0);
   const gameOverRef = useRef(false);
   const playerHitsRef = useRef(0);
   const enemyHitsRef = useRef(0);
@@ -266,12 +268,24 @@ export const useGameLoop = () => {
       console.log('[GameLoop] Creating ForestDustField with dimensions:', dims.width, 'x', dims.height);
       forestDustFieldRef.current = new ForestDustField(dims.width, dims.height);
       console.log('[GameLoop] ForestDustField created:', forestDustFieldRef.current);
+      forestDustFieldRef.current.setRevealProgress(0);
+      const warmDustReveal = () => {
+        const dust = forestDustFieldRef.current;
+        if (!dust) return;
+        if (dust.isReady()) {
+          dust.setRevealProgress(0.1);
+        } else {
+          requestAnimationFrame(warmDustReveal);
+        }
+      };
+      requestAnimationFrame(warmDustReveal);
     } else {
       forestDustFieldRef.current = null;
     }
 
     // Prewarm ground caches once dimensions are known
     transitioningGroundRef.current.prewarm(dims.width, dims.height);
+    forestTreesBackgroundRef.current.prewarm(dims.width, dims.height);
 
     setPlayerState(playerPhysicsRef.current.getState());
     setLasers(laserPhysicsRef.current.getLasers());
@@ -288,6 +302,7 @@ export const useGameLoop = () => {
   useEffect(() => {
     const interval = setInterval(() => {
       setScore(scoreRef.current);
+      setCumulativeScore(totalScoreRef.current);
     }, SCORE_UPDATE_INTERVAL);
     return () => clearInterval(interval);
   }, []);
@@ -311,10 +326,12 @@ export const useGameLoop = () => {
   useEffect(() => {
     if (forestUnlockedRef.current) return;
     if (score >= FOREST_UNLOCK_SCORE) {
+      console.log('[FOREST UNLOCK] Score:', score, 'Player state:', playerState);
       forestUnlockedRef.current = true;
       ensureForestBackgroundActive();
+      console.log('[FOREST UNLOCK] After ensureForestBackgroundActive, Player state:', playerState);
     }
-  }, [score, ensureForestBackgroundActive]);
+  }, [score, ensureForestBackgroundActive, playerState]);
   useEffect(() => {
     cameraXRef.current = cameraX;
   }, [cameraX]);
@@ -402,8 +419,9 @@ export const useGameLoop = () => {
 
       // Prewarm ground shortly before unlock if not yet done
       if (!groundPrewarmedRef.current && scoreRef.current >= 90) {
-        const dims = dimensionsRef.current;
-        transitioningGroundRef.current?.prewarm(dims.width, dims.height);
+        const dimsPrewarm = dimensionsRef.current;
+        transitioningGroundRef.current?.prewarm(dimsPrewarm.width, dimsPrewarm.height);
+        forestTreesBackgroundRef.current?.prewarm(dimsPrewarm.width, dimsPrewarm.height);
         groundPrewarmedRef.current = true;
       }
       laserPhysicsRef.current?.updateLaserCount(scoreRef.current);
@@ -657,7 +675,9 @@ export const useGameLoop = () => {
             console.log('[STAGE 2] Dimensions - width:', dims.width, 'height:', dims.height, 'centerY:', dims.centerY, 'floorY:', dims.floorY);
 
             // Increment level
-            setLevel(prev => prev + 1);
+            const upcomingLevel = levelRef.current + 1;
+            levelRef.current = upcomingLevel;
+            setLevel(upcomingLevel);
             // Reset core systems similar to handleRestart
             scoreRef.current = 0;
             gameOverRef.current = false;
@@ -678,8 +698,9 @@ export const useGameLoop = () => {
             // This ensures forest is already visible and scrolling
             transitioningGroundRef.current?.setForestMode(true);
 
-            // Make sure forest background transition has started (should already be running from score 100)
+            // Make sure forest background transition has started (should already be running from score 50)
             ensureForestBackgroundActive();
+            forestUnlockedRef.current = true;
 
             // Level 2+ starts in the forest, so dust field should be fully visible
             forestDustFieldRef.current?.setRevealProgress(1);
@@ -720,9 +741,11 @@ export const useGameLoop = () => {
             nextChargeTimeRef.current = 0;
             chargeActiveRef.current = false;
             chargeVelocityRef.current = 0;
-            // Increase laser speed slightly for next level
-            const speedMultiplier = 1 + 0.15 * (levelRef.current);
+            // Increase laser speed slightly for next level and add extra chaos
+            const baseSpeedFactor = upcomingLevel >= 2 ? 0.2 : 0.15;
+            const speedMultiplier = 1 + baseSpeedFactor * upcomingLevel;
             laserPhysicsRef.current?.setBaseSpeed(BASE_LASER_SPEED * speedMultiplier);
+            laserPhysicsRef.current?.setChaosBoost(upcomingLevel >= 2 ? 1.3 : 1);
             // Prepare camera to start at 0 and pan right to dims.width
             cameraXRef.current = 0;
             setCameraX(0);
@@ -876,13 +899,15 @@ export const useGameLoop = () => {
       if (laserUpdate && laserPhysicsRef.current) {
         if (laserUpdate.scoreChange > 0) {
           scoreRef.current += laserUpdate.scoreChange;
-          if (!canShootRef.current) {
-            setEnergy(Math.min(100, scoreRef.current));
-          } else {
-            setEnergy(prev => Math.min(100, prev + 2));
-          }
-          if (scoreRef.current >= 100 && !canShootRef.current) {
+          totalScoreRef.current += laserUpdate.scoreChange;
+          // Energy gains 2% per laser jump (reaches 100% at 50 jumps)
+          setEnergy(prev => Math.min(100, prev + 2));
+          // Unlock shooting at 50 jumps (when energy reaches 100%)
+          if (scoreRef.current >= 50 && !canShootRef.current) {
+            console.log('[SHOOT UNLOCK] Score:', scoreRef.current, 'Player pos before:', newPlayerState?.position);
             setCanShoot(true);
+            canShootRef.current = true;
+            console.log('[SHOOT UNLOCK] Player pos after:', newPlayerState?.position);
           }
         }
 
@@ -925,6 +950,10 @@ export const useGameLoop = () => {
 
       if (canShootRef.current) {
         let hitRegisteredThisFrame = false;
+        const cameraOffset = cameraXRef.current;
+        const screenRight = cameraOffset + dimensionsRef.current.width;
+        const enemyWorldX = enemyXRef.current;
+
         setPlayerProjectiles(prev =>
           prev
             .map(projectile => {
@@ -940,8 +969,8 @@ export const useGameLoop = () => {
                 : (enemyPhysicsRef.current?.getY() || 0);
 
               const hitEnemy =
-                newX + PLAYER_PROJECTILE_WIDTH > dims.enemyX &&
-                newX < dims.enemyX + currentEnemyWidth &&
+                newX + PLAYER_PROJECTILE_WIDTH > enemyWorldX &&
+                newX < enemyWorldX + currentEnemyWidth &&
                 projectile.y + PLAYER_PROJECTILE_HEIGHT > enemyCurrentY &&
                 projectile.y < enemyCurrentY + currentEnemyHeight;
 
@@ -1005,7 +1034,7 @@ export const useGameLoop = () => {
                 return { ...projectile, x: -1000, active: false, hasHitEnemy: true };
               }
 
-              if (newX > dims.width) return { ...projectile, active: false };
+              if (newX > screenRight) return { ...projectile, active: false };
               return { ...projectile, x: newX };
             })
             .filter(p => p.active)
@@ -1114,6 +1143,8 @@ export const useGameLoop = () => {
     transitioningGroundRef.current?.setForestMode(false); // Show proper cloud->transition->forest sequence on Level 1
     forestUnlockedRef.current = false;
     resetForestDust();
+    totalScoreRef.current = 0;
+    setCumulativeScore(0);
     const resetState = playerPhysicsRef.current?.getState();
     if (resetState) {
       setPlayerState(resetState);
@@ -1151,17 +1182,25 @@ export const useGameLoop = () => {
   }, [resetForestDust]);
 
   const testEnergy = useCallback(() => {
-    scoreRef.current = 100;
-    setScore(100);
+    scoreRef.current = 50;
+    setScore(50);
     setEnergy(100);
-    // Ensure the ground shows the transition tile next (no immediate forest-only)
-    transitioningGroundRef.current?.restartTransition();
-    // Prewarm caches immediately for a seamless first frame
     const dims = dimensionsRef.current;
-    transitioningGroundRef.current?.prewarm(dims.width, dims.height);
+    if (levelRef.current <= 1) {
+      // Ensure the ground shows the transition tile next (no immediate forest-only)
+      transitioningGroundRef.current?.restartTransition();
+      // Prewarm caches immediately for a seamless first frame
+      transitioningGroundRef.current?.prewarm(dims.width, dims.height);
+      forestTreesBackgroundRef.current?.prewarm(dims.width, dims.height);
+    } else {
+      transitioningGroundRef.current?.setForestMode(true);
+      ensureForestBackgroundActive();
+      forestDustFieldRef.current?.setRevealProgress(1);
+      forestUnlockedRef.current = true;
+    }
     setCanShoot(true);
     laserPhysicsRef.current?.setScore(100);
-  }, []);
+  }, [ensureForestBackgroundActive]);
 
   const handleTestTenOuts = useCallback(() => {
     if (gameOverRef.current) return;
@@ -1188,6 +1227,7 @@ export const useGameLoop = () => {
 
   return {
     score,
+    cumulativeScore,
     gameOver,
     hitCount,
     enemyHits,

@@ -250,7 +250,7 @@ export class EnemyPhysics {
       }
 
       // Check if we should switch to hover mode (after 3rd jump starts descending)
-      // Add a 100ms delay before transitioning to let the ball fall a bit
+      // Add a 200ms delay before transitioning to let the ball fall a bit
       if (this.jumpSequenceStep === 4 && this.enemyState.velocity < 0) {
         if (!this.hasStartedDescending) {
           this.hasStartedDescending = true;
@@ -259,7 +259,7 @@ export class EnemyPhysics {
 
         this.descendingTimer += 16.67; // Assume 60 FPS (~16.67ms per frame)
 
-        if (this.descendingTimer >= 100) { // 100ms delay
+        if (this.descendingTimer >= 500) { // 200ms delay (100ms longer than before)
           this.jumpSequenceActive = false;
           // Mark as ready for transition but don't disable physics yet
         }

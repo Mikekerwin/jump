@@ -49,7 +49,7 @@ export const PLAYER_HORIZONTAL_RANGE_LEFT = 100; // Pixels player can move left 
 export const PLAYER_HORIZONTAL_RANGE_RIGHT = 200; // Pixels player can move right from center
 export const BALL_GROWTH_TRANSITION_DURATION = 0.65; // Duration in seconds for width/height/top/left growth animation
 
-// 🟢 PLAYER SHOOTING (UNLOCKS AT SCORE 100+)
+// 🟢 PLAYER SHOOTING (UNLOCKS AT SCORE 50 WHEN ENERGY REACHES 100%)
 export const PLAYER_PROJECTILE_SPEED = 8;
 export const PLAYER_PROJECTILE_WIDTH = 15;
 export const PLAYER_PROJECTILE_HEIGHT = 3;
@@ -133,10 +133,12 @@ export const STARS_ENABLED = false; // Toggle stars on/off (legacy system, repla
 // Forest dust / starfield WebGL layer configuration
 export const FOREST_DUST_ENABLED = true;
 export const FOREST_DUST_PARTICLE_COUNT = 90; // Increased for denser small dust
+export const FOREST_DUST_PARTICLE_COUNT_MOBILE = 36;
 export const FOREST_DUST_SCROLL_SPEED = 0.055; // Pixels per ms (scaled in shader for parallax)
 export const FOREST_DUST_FADE_IN_DURATION = 2400; // ms
 export const FOREST_DUST_FADE_OUT_DURATION = 1200; // ms
 export const FOREST_DUST_COLOR = { r: 0.95, g: 0.82, b: 0.65 };
+export const FOREST_DUST_MOBILE_SWIRL_SCALE = 0.4;
 export type ForestDustBucket = {
   ratio: number;
   minSizePercent: number; // Size as percentage of screen height
@@ -159,7 +161,7 @@ export const FOREST_DUST_BUCKETS: ForestDustBucket[] = [
     blur: 0.05, // Crisp
     clustered: false,
     minHeightPercent: 0.10,
-    maxHeightPercent: 0.50,
+    maxHeightPercent: 0.57,
   },
   // Medium particles (soft glow) - ~15% of particles
   {
@@ -182,14 +184,14 @@ export const FOREST_DUST_BUCKETS: ForestDustBucket[] = [
     maxDepth: 1.0,
     blur: 0.85,
     clustered: false,
-    minHeightPercent: 0.1,
-    maxHeightPercent: 0.22,
+    minHeightPercent: 0.15,
+    maxHeightPercent: 0.23,
   },
 ];
 export const FOREST_DUST_SMALL_CLUSTER_COUNT = 10;
 export const FOREST_DUST_SMALL_CLUSTER_RADIUS = 140;
 
-// Cloud background configuration (score 0-100)
+// Cloud background configuration (score 0-50)
 export const CLOUD_SKY_IMAGE_PATH = process.env.PUBLIC_URL
   ? `${process.env.PUBLIC_URL}/cloud_light_sky.webp`
   : '/cloud_light_sky.webp';
@@ -197,12 +199,12 @@ export const CLOUD_GROUND_IMAGE_PATH = process.env.PUBLIC_URL
   ? `${process.env.PUBLIC_URL}/cloud_light_ground.webp`
   : '/cloud_light_ground.webp';
 
-// Transition ground (appears once between cloud and forest at score 100)
+// Transition ground (appears once between cloud and forest at score 50)
 export const TRANSITION_GROUND_IMAGE_PATH = process.env.PUBLIC_URL
   ? `${process.env.PUBLIC_URL}/cloud_light_ground_forest_transition.webp`
   : '/cloud_light_ground_forest_transition.webp';
 
-// Forest background configuration (score 100+)
+// Forest background configuration (score 50+)
 export const FOREST_TRANSITION_IMAGE_PATH = process.env.PUBLIC_URL
   ? `${process.env.PUBLIC_URL}/forestTransition.webp`
   : '/forestTransition.webp';
@@ -218,7 +220,7 @@ export const BACKGROUND_SCROLL_SPEED = 0.5; // Speed for far background trees
 export const GROUND_SCROLL_SPEED = 1; // Same speed as stars (faster than background for parallax)
 
 // Background transition threshold
-export const FOREST_UNLOCK_SCORE = 100; // Score at which forest theme unlocks
+export const FOREST_UNLOCK_SCORE = 50; // Score at which forest theme unlocks (when energy bar reaches 100%)
 export const GROUND_HEIGHT_EXTENSION_PERCENT = 0.025; // 2.5% of screen height. Replaces fixed pixel value.
 export const GROUND_HEIGHT_EXTENSION = 20; // DEPRECATED: Kept for reference, but not used in calculations.
 

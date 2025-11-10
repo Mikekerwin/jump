@@ -32,7 +32,7 @@ export const EnergyBar: React.FC<EnergyBarProps> = ({ energy, score }) => {
   };
 
   const barColor = getColor();
-  const barText = score < 100 ? 'Fill Up!' : (energy > 50 ? 'Shoot!' : 'Jump!');
+  const barText = score < 50 ? 'Fill Up!' : (energy > 50 ? 'Shoot!' : 'Jump!');
 
   return (
     <div

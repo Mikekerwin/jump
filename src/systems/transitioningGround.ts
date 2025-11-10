@@ -1,6 +1,6 @@
 /**
  * Transitioning Ground System
- * Handles transitioning from cloud ground to forest ground at score 100
+ * Handles transitioning from cloud ground to forest ground at score 50
  * Uses offscreen canvas caching for better performance on mobile
  */
 
@@ -192,7 +192,7 @@ export class TransitioningGround {
     // Move ground to the left
     this.offsetX -= this.currentScrollSpeed;
 
-    // Mark transition point when score reaches 100 (but wait for next tile boundary)
+    // Mark transition point when score reaches 50 (but wait for next tile boundary)
     if (score >= FOREST_UNLOCK_SCORE && !this.transitionStarted) {
       this.transitionStarted = true;
       // Store the current offset - we'll calculate the tile boundary in render
@@ -236,7 +236,7 @@ export class TransitioningGround {
     }
 
     if (!this.transitionStarted) {
-      // Before score 100: Just draw cloud ground looping
+      // Before score 50: Just draw cloud ground looping
       if (!this.cachedCloudTile) return;
       const wrappedOffsetX = this.offsetX % cloudAdjustedWidth;
       const leftMargin = -cloudAdjustedWidth;
@@ -247,7 +247,7 @@ export class TransitioningGround {
       return;
     }
 
-    // After score 100: Draw cloud + transition + forest sequence
+    // After score 50: Draw cloud + transition + forest sequence
     if (!this.cachedCloudTile || !this.cachedTransitionTile || !this.cachedForestTile) {
       // Cached tiles not ready yet, just draw clouds
       if (!this.cachedCloudTile) return;

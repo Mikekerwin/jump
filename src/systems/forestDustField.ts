@@ -6,6 +6,7 @@
 
 import {
   FOREST_DUST_PARTICLE_COUNT,
+  FOREST_DUST_PARTICLE_COUNT_MOBILE,
   FOREST_DUST_SCROLL_SPEED,
   FOREST_DUST_FADE_IN_DURATION,
   FOREST_DUST_FADE_OUT_DURATION,
@@ -13,6 +14,7 @@ import {
   FOREST_DUST_BUCKETS,
   FOREST_DUST_SMALL_CLUSTER_COUNT,
   FOREST_DUST_SMALL_CLUSTER_RADIUS,
+  FOREST_DUST_MOBILE_SWIRL_SCALE,
   ForestDustBucket,
 } from '../config/gameConfig';
 
@@ -30,6 +32,7 @@ const VERTEX_SHADER = `
   uniform vec2 u_resolution;
   uniform float u_scroll;
   uniform float u_time;
+  uniform float u_swirlScale;
 
   varying float v_depth;
   varying float v_twinkle;
@@ -57,7 +60,7 @@ const VERTEX_SHADER = `
     float horizontalWiggle = sin(wigglePhase) * mix(6.0, 20.0, a_blur);
 
     // Small swirling motion for dust motes
-    float swirlRadius = mix(4.0, 28.0, a_swirl);
+    float swirlRadius = mix(4.0, 28.0, a_swirl) * u_swirlScale;
     float swirlPhase = u_time * (0.8 + a_twinkle * 1.2) + a_position.y * 0.005;
     float swirlX = cos(swirlPhase) * swirlRadius;
     float swirlY = sin(swirlPhase * 1.3 + a_position.x * 0.002) * swirlRadius * 0.8;
@@ -146,7 +149,6 @@ export class ForestDustField {
   private gl: GLContext = null;
   private program: WebGLProgram | null = null;
   private isInitializingGL: boolean = false;
-
   private positionBuffer: WebGLBuffer | null = null;
   private depthBuffer: WebGLBuffer | null = null;
   private sizeBuffer: WebGLBuffer | null = null;
@@ -171,15 +173,16 @@ export class ForestDustField {
     time?: WebGLUniformLocation | null;
     color?: WebGLUniformLocation | null;
     opacity?: WebGLUniformLocation | null;
+    swirlScale?: WebGLUniformLocation | null;
   } = {};
 
-  private particlePositions: Float32Array = new Float32Array(FOREST_DUST_PARTICLE_COUNT * 2);
-  private particleDepths: Float32Array = new Float32Array(FOREST_DUST_PARTICLE_COUNT);
-  private particleSizes: Float32Array = new Float32Array(FOREST_DUST_PARTICLE_COUNT);
-  private particleTwinkle: Float32Array = new Float32Array(FOREST_DUST_PARTICLE_COUNT);
-  private particleBlur: Float32Array = new Float32Array(FOREST_DUST_PARTICLE_COUNT);
-  private particleFade: Float32Array = new Float32Array(FOREST_DUST_PARTICLE_COUNT);
-  private particleSwirl: Float32Array = new Float32Array(FOREST_DUST_PARTICLE_COUNT);
+  private particlePositions!: Float32Array;
+  private particleDepths!: Float32Array;
+  private particleSizes!: Float32Array;
+  private particleTwinkle!: Float32Array;
+  private particleBlur!: Float32Array;
+  private particleFade!: Float32Array;
+  private particleSwirl!: Float32Array;
 
   private width: number;
   private height: number;
@@ -197,21 +200,33 @@ export class ForestDustField {
   private revealTriggered = true; // TEMP: Always true to test rendering
 
   // Per-particle fade tracking
-  private particleFadeStarts: Float32Array = new Float32Array(FOREST_DUST_PARTICLE_COUNT); // Start time for each particle
-  private particleFadeDelays: Float32Array = new Float32Array(FOREST_DUST_PARTICLE_COUNT); // Delay before fade starts
-  private particleFadeDurations: Float32Array = new Float32Array(FOREST_DUST_PARTICLE_COUNT); // Duration of fade
+  private particleFadeDelays!: Float32Array; // Delay before fade starts
+  private particleFadeDurations!: Float32Array; // Duration of fade
   private fadeInStartTime = 0; // When the fade-in sequence started
 
   private supported = typeof document !== 'undefined';
   private smallClusterCenters: Array<{ x: number; y: number }> = [];
   private spawnMarginX: number = 0;
   private spawnMarginY: number = 0;
+  private readonly isMobileDevice: boolean;
+  private readonly swirlScale: number;
+  private readonly particleCount: number;
+  private readonly scrollSpeed: number;
   private manualRevealProgress: number | null = null;
   private hasManualRevealCompleted: boolean = false;
 
   constructor(width: number, height: number) {
     this.width = width;
     this.height = height;
+    this.isMobileDevice =
+      typeof navigator !== 'undefined'
+        ? /Mobi|Android|iPhone|iPad|iPod|Windows Phone/i.test(navigator.userAgent)
+        : false;
+    this.particleCount = this.isMobileDevice ? FOREST_DUST_PARTICLE_COUNT_MOBILE : FOREST_DUST_PARTICLE_COUNT;
+    this.swirlScale = this.isMobileDevice ? FOREST_DUST_MOBILE_SWIRL_SCALE : 1;
+    this.scrollSpeed = this.isMobileDevice ? FOREST_DUST_SCROLL_SPEED * 0.75 : FOREST_DUST_SCROLL_SPEED;
+
+    this.initializeParticleArrays();
     this.updateSpawnMargins();
 
     if (this.supported) {
@@ -265,10 +280,11 @@ export class ForestDustField {
       this.attribLocations.swirl = gl.getAttribLocation(this.program, 'a_swirl');
 
       this.uniformLocations.resolution = gl.getUniformLocation(this.program, 'u_resolution');
-      this.uniformLocations.scroll = gl.getUniformLocation(this.program, 'u_scroll');
-      this.uniformLocations.time = gl.getUniformLocation(this.program, 'u_time');
-      this.uniformLocations.color = gl.getUniformLocation(this.program, 'u_color');
-      this.uniformLocations.opacity = gl.getUniformLocation(this.program, 'u_opacity');
+    this.uniformLocations.scroll = gl.getUniformLocation(this.program, 'u_scroll');
+    this.uniformLocations.time = gl.getUniformLocation(this.program, 'u_time');
+    this.uniformLocations.color = gl.getUniformLocation(this.program, 'u_color');
+    this.uniformLocations.opacity = gl.getUniformLocation(this.program, 'u_opacity');
+    this.uniformLocations.swirlScale = gl.getUniformLocation(this.program, 'u_swirlScale');
 
       this.positionBuffer = gl.createBuffer();
       this.depthBuffer = gl.createBuffer();
@@ -375,6 +391,18 @@ export class ForestDustField {
   private updateSpawnMargins(): void {
     this.spawnMarginX = Math.max(80, this.width * 0.25);
     this.spawnMarginY = Math.max(60, this.height * 0.2);
+  }
+
+  private initializeParticleArrays(): void {
+    this.particlePositions = new Float32Array(this.particleCount * 2);
+    this.particleDepths = new Float32Array(this.particleCount);
+    this.particleSizes = new Float32Array(this.particleCount);
+    this.particleTwinkle = new Float32Array(this.particleCount);
+    this.particleBlur = new Float32Array(this.particleCount);
+    this.particleFade = new Float32Array(this.particleCount);
+    this.particleSwirl = new Float32Array(this.particleCount);
+    this.particleFadeDelays = new Float32Array(this.particleCount);
+    this.particleFadeDurations = new Float32Array(this.particleCount);
   }
 
   private generateClusterCenters(): void {
@@ -486,7 +514,7 @@ export class ForestDustField {
     let mediumCount = 0;
     let smallCount = 0;
 
-    for (let i = 0; i < FOREST_DUST_PARTICLE_COUNT; i++) {
+    for (let i = 0; i < this.particleCount; i++) {
       const bucket = this.pickBucket();
       const idx = i * 2;
       const position = bucket.clustered ? this.sampleClusterPosition(bucket) : this.randomSpawnPosition(bucket);
@@ -523,7 +551,7 @@ export class ForestDustField {
       else smallCount++;
     }
 
-    console.log(`[ForestDust] Seeded ${FOREST_DUST_PARTICLE_COUNT} particles: ${smallCount} small, ${mediumCount} medium, ${largeCount} large (screen: ${this.width}x${this.height})`);
+    console.log(`[ForestDust] Seeded ${this.particleCount} particles: ${smallCount} small, ${mediumCount} medium, ${largeCount} large (screen: ${this.width}x${this.height})`);
   }
 
   private uploadParticleData(skipEnsure: boolean = false): void {
@@ -647,6 +675,15 @@ export class ForestDustField {
   private setAllParticleFades(value: number): void {
     this.particleFade.fill(value);
     this.uploadFadeBufferData();
+    if (value >= 1) {
+      this.opacity = 1;
+    } else if (value <= 0) {
+      this.opacity = 0;
+    }
+  }
+
+  isReady(): boolean {
+    return !!this.gl && !!this.program;
   }
 
   /**
@@ -662,7 +699,7 @@ export class ForestDustField {
     this.hasManualRevealCompleted = false;
 
     // Reset all particle fades to 0
-    for (let i = 0; i < FOREST_DUST_PARTICLE_COUNT; i++) {
+    for (let i = 0; i < this.particleCount; i++) {
       this.particleFade[i] = 0;
     }
     this.uploadFadeBufferData();
@@ -678,7 +715,7 @@ export class ForestDustField {
     const delta = now - this.lastUpdateTime;
     this.lastUpdateTime = now;
 
-    this.scrollOffset = (this.scrollOffset - FOREST_DUST_SCROLL_SPEED * delta) % this.width;
+    this.scrollOffset = (this.scrollOffset - this.scrollSpeed * delta) % this.width;
     if (this.scrollOffset < 0) {
       this.scrollOffset += this.width;
     }
@@ -691,7 +728,7 @@ export class ForestDustField {
         elapsed = this.manualRevealProgress * FOREST_DUST_FADE_IN_DURATION;
       }
 
-      for (let i = 0; i < FOREST_DUST_PARTICLE_COUNT; i++) {
+      for (let i = 0; i < this.particleCount; i++) {
         const currentFade = this.particleFade[i];
 
         // If particle hasn't fully faded in yet
@@ -727,7 +764,7 @@ export class ForestDustField {
   /**
    * Render the dust field to the provided 2D context (composited between background and ground).
    */
-  render(ctx: CanvasRenderingContext2D, width: number, height: number, cameraOffset: number = 0): void {
+  render(ctx: CanvasRenderingContext2D, width: number, height: number): void {
     if (this.opacity <= 0.001) return;
     if (!this.ensureGLResources() || !this.canvas) return;
 
@@ -735,19 +772,19 @@ export class ForestDustField {
       this.updateDimensions(width, height);
     }
 
-    this.draw(cameraOffset);
+    this.draw();
     ctx.drawImage(this.canvas, 0, 0, width, height);
   }
 
   private drawCallCount = 0;
 
-  private draw(cameraOffset: number = 0): void {
+  private draw(): void {
     if (!this.gl || !this.program || !this.canvas) return;
     const gl = this.gl;
 
     // Log first few draw calls to verify rendering
     if (this.drawCallCount < 3) {
-      console.log(`[ForestDust] Drawing ${FOREST_DUST_PARTICLE_COUNT} particles (call #${this.drawCallCount + 1})`);
+      console.log(`[ForestDust] Drawing ${this.particleCount} particles (call #${this.drawCallCount + 1})`);
       this.drawCallCount++;
     }
 
@@ -773,8 +810,7 @@ export class ForestDustField {
 
     const scrollLoc = this.uniformLocations.scroll;
     if (scrollLoc) {
-      // Add camera offset to scroll to compensate for camera transform
-      gl.uniform1f(scrollLoc, this.scrollOffset + cameraOffset);
+      gl.uniform1f(scrollLoc, this.scrollOffset);
     }
 
     const elapsedSeconds = ((typeof performance !== 'undefined' ? performance.now() : 0) - this.startTime) / 1000;
@@ -793,7 +829,12 @@ export class ForestDustField {
       gl.uniform1f(opacityLoc, this.opacity);
     }
 
-    gl.drawArrays(gl.POINTS, 0, FOREST_DUST_PARTICLE_COUNT);
+    const swirlScaleLoc = this.uniformLocations.swirlScale;
+    if (swirlScaleLoc) {
+      gl.uniform1f(swirlScaleLoc, this.swirlScale);
+    }
+
+    gl.drawArrays(gl.POINTS, 0, this.particleCount);
   }
 
   private bindAttribute(buffer: WebGLBuffer | null, location: number | undefined, size: number): void {
