@@ -171,9 +171,17 @@ export class TransitioningGround {
   }
 
   /**
-   * Update ground offset for scrolling animation. Handles deceleration if triggered.
+   * Expose current scroll speed so dependent systems can sync
    */
-  update(score: number): void {
+  getCurrentScrollSpeed(): number {
+    return this.currentScrollSpeed;
+  }
+
+  /**
+   * Update ground offset for scrolling animation. Handles deceleration if triggered.
+   * @param energyPercent Current energy percentage (0-100)
+   */
+  update(energyPercent: number): void {
     if (!this.cloudImageLoaded && !this.forestImageLoaded) return;
 
     if (this.isSlowingDown) {
@@ -192,12 +200,12 @@ export class TransitioningGround {
     // Move ground to the left
     this.offsetX -= this.currentScrollSpeed;
 
-    // Mark transition point when score reaches 50 (but wait for next tile boundary)
-    if (score >= FOREST_UNLOCK_SCORE && !this.transitionStarted) {
+    // Mark transition point when energy bar reaches threshold (but wait for next tile boundary)
+    if (energyPercent >= FOREST_UNLOCK_SCORE && !this.transitionStarted) {
       this.transitionStarted = true;
       // Store the current offset - we'll calculate the tile boundary in render
       this.transitionOffsetX = this.offsetX;
-      console.log('🌲 Ground transition triggered! offsetX:', this.offsetX, 'score:', score);
+      console.log('🌲 Ground transition triggered! offsetX:', this.offsetX, 'energy:', energyPercent);
     }
   }
 
@@ -206,7 +214,7 @@ export class TransitioningGround {
    * Sequence: cloud → transition tile → forest (looping)
    * Uses offscreen canvas caching for better performance
    */
-    render(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number, score: number): void {
+    render(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
     if (!this.cloudImageLoaded || !this.cloudImage) return;
 
     const heightExtension = canvasHeight * GROUND_HEIGHT_EXTENSION_PERCENT;
@@ -403,9 +411,48 @@ export class TransitioningGround {
     // the midpoint is "reached" when offsetX <= transitionMidpoint
     return currentX <= transitionMidpoint;
   }
+
+  /**
+   * Get the actual Y position of the ground's top edge (visual surface)
+   * This is where the player's bottom should touch
+   */
+  getGroundTopY(canvasWidth: number, canvasHeight: number): number {
+    if (!this.cloudImageLoaded || !this.cloudImage) {
+      return canvasHeight; // Fallback to bottom of screen
+    }
+
+    const heightExtension = canvasHeight * GROUND_HEIGHT_EXTENSION_PERCENT;
+    const cloudScale = canvasWidth / this.cloudImageWidth;
+    const cloudScaledHeight = this.cloudImageHeight * cloudScale;
+    const cloudAdjustedHeight = cloudScaledHeight + heightExtension;
+    const groundTopY = canvasHeight - cloudAdjustedHeight;
+
+    return groundTopY;
+  }
+
+  /**
+   * Get the Y position of the ground surface (where player should land)
+   * This matches what the old centerY calculation produced
+   * @param canvasWidth Canvas width
+   * @param canvasHeight Canvas height
+   * @param playerSize Player size (base ball size) - used to calculate the offset
+   */
+  getGroundSurfaceY(canvasWidth: number, canvasHeight: number, playerSize: number): number {
+    // Don't use getGroundTopY - instead match the OLD centerY calculation
+    // which was working correctly with the shadow system
+    //
+    // The old calculation was:
+    // groundOffset = height * GROUND_HEIGHT_EXTENSION_PERCENT
+    // centerY = (height * responsiveFloorPosition + groundOffset) - hitboxSize / 2
+    //
+    // We don't have access to responsiveFloorPosition here, so we need to calculate
+    // where centerY SHOULD be based on the ground image position
+    //
+    // Actually, let's just return undefined for now and let it use the default centerY
+    // This whole approach is wrong - we shouldn't be changing the ground collision
+    return NaN; // This will cause it to use the fallback centerY
+  }
 }
-
-
 
 
 

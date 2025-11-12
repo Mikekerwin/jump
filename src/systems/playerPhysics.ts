@@ -22,6 +22,7 @@ export class PlayerPhysics {
   private jumpCount: number = 0; // Track number of jumps (0, 1, or 2 for double jump)
   private horizontalRangeLeft: number = PLAYER_HORIZONTAL_RANGE_LEFT;
   private horizontalRangeRight: number = PLAYER_HORIZONTAL_RANGE_RIGHT;
+  private surfaceOverrideY: number | null = null;
   // Responsive physics values
   private gravity: number = GRAVITY;
   private boost: number = BOOST;
@@ -66,8 +67,9 @@ export class PlayerPhysics {
 
   /**
    * Update player physics for one frame
+   * @param groundLevel Optional ground level (defaults to centerY, but can be platform surface)
    */
-  update(): PlayerState {
+  update(groundLevel?: number): PlayerState {
     // Apply gravity
     this.playerState.velocity -= this.gravity;
 
@@ -84,15 +86,26 @@ export class PlayerPhysics {
     // Update position
     this.playerState.position.y -= this.playerState.velocity;
 
-    // Handle floor collision (bounce)
-    if (this.playerState.position.y > this.centerY) {
-      this.playerState.position.y = this.centerY;
-      this.playerState.velocity = -this.playerState.velocity * this.energyLoss;
+    // Determine current ground target (platform override > provided > default)
+    const effectiveGround =
+      this.surfaceOverrideY ?? (groundLevel !== undefined ? groundLevel : this.centerY);
+
+    // Handle floor/platform collision (bounce on default ground, clamp on platform)
+    if (this.playerState.position.y > effectiveGround) {
+      this.playerState.position.y = effectiveGround;
+      if (this.surfaceOverrideY !== null && effectiveGround === this.surfaceOverrideY) {
+        this.playerState.velocity = 0;
+      } else {
+        this.playerState.velocity = -this.playerState.velocity * this.energyLoss;
+      }
       this.playerState.hasJumped = false;
       this.jumpCount = 0; // Reset jump count when touching ground
 
       // Stop very small bounces
-      if (Math.abs(this.playerState.velocity) < MIN_BOUNCE_VELOCITY) {
+      if (
+        this.surfaceOverrideY === null &&
+        Math.abs(this.playerState.velocity) < MIN_BOUNCE_VELOCITY
+      ) {
         this.playerState.velocity = 0;
       }
     }
@@ -142,6 +155,7 @@ export class PlayerPhysics {
       this.playerState.hasJumped = true;
       this.jumpCount++;
     }
+    this.surfaceOverrideY = null;
     this.playerState.isHolding = true;
     this.playerState.holdStartTime = performance.now();
   }
@@ -160,6 +174,7 @@ export class PlayerPhysics {
   private updateScaling(): void {
     let targetScaleX = 1;
     let targetScaleY = 1;
+    const groundY = this.surfaceOverrideY ?? this.centerY;
 
     if (Math.abs(this.playerState.velocity) > 0.1) {
       if (this.playerState.velocity > 0) {
@@ -175,7 +190,7 @@ export class PlayerPhysics {
 
     // Squash when on ground
     if (
-      this.playerState.position.y >= this.centerY &&
+      this.playerState.position.y >= groundY &&
       Math.abs(this.playerState.velocity) < 0.5
     ) {
       targetScaleY = 0.7;
@@ -185,7 +200,7 @@ export class PlayerPhysics {
     // Return to normal when settled
     if (
       Math.abs(this.playerState.velocity) < 0.01 &&
-      this.playerState.position.y >= this.centerY
+      this.playerState.position.y >= groundY
     ) {
       targetScaleX = 1;
       targetScaleY = 1;
@@ -204,8 +219,9 @@ export class PlayerPhysics {
    * Check if player should trigger a bounce sound
    */
   shouldPlayBounceSound(): boolean {
+    const groundY = this.surfaceOverrideY ?? this.centerY;
     return (
-      this.playerState.position.y >= this.centerY &&
+      this.playerState.position.y >= groundY &&
       Math.abs(this.playerState.velocity) > MIN_BOUNCE_VELOCITY
     );
   }
@@ -223,6 +239,7 @@ export class PlayerPhysics {
   reset(initialX: number, initialY: number): void {
     this.initialX = initialX;
     this.jumpCount = 0; // Reset jump count
+    this.surfaceOverrideY = null;
     this.playerState = {
       position: { x: initialX, y: initialY },
       velocity: 0,
@@ -243,6 +260,7 @@ export class PlayerPhysics {
     this.centerY = newCenterY;
     // When resizing, we don't want to snap back to the initial Y if we're in the air
     this.playerState.position.y = newCenterY;
+    this.surfaceOverrideY = null;
   }
 
   /**
@@ -250,6 +268,24 @@ export class PlayerPhysics {
    */
   getState(): PlayerState {
     return this.playerState;
+  }
+
+  /**
+   * Clamp the player onto an arbitrary surface (e.g., floating platforms)
+   */
+  landOnSurface(surfaceY: number): void {
+    this.surfaceOverrideY = surfaceY;
+    if (this.playerState.position.y > surfaceY) {
+      this.playerState.position.y = surfaceY;
+    }
+    this.playerState.velocity = 0;
+    this.playerState.hasJumped = false;
+    this.jumpCount = 0;
+    this.updateScaling();
+  }
+
+  clearSurfaceOverride(): void {
+    this.surfaceOverrideY = null;
   }
 
   /**

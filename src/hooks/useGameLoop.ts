@@ -15,6 +15,7 @@ import { StaticBackground } from '../systems/staticBackground';
 import { ScrollingBackground } from '../systems/scrollingBackground';
 import { TransitioningGround } from '../systems/transitioningGround';
 import { GradientOverlay } from '../systems/gradientOverlay';
+import { FloatingPlatforms } from '../systems/floatingPlatforms';
 import { PlayerState, LaserState, PlayerProjectile } from '../types/game';
   import {
     PLAYER_X_POSITION,
@@ -25,6 +26,7 @@ import { PlayerState, LaserState, PlayerProjectile } from '../types/game';
     PLAYER_PROJECTILE_HEIGHT,
     MAX_OUTS,
     HITS_PER_OUT,
+    MAX_LASERS,
     BASE_LASER_SPEED,
     CLOUD_SKY_IMAGE_PATH,
     CLOUD_GROUND_IMAGE_PATH,
@@ -33,9 +35,12 @@ import { PlayerState, LaserState, PlayerProjectile } from '../types/game';
     FOREST_TREES_IMAGE_PATH,
     FOREST_GROUND_IMAGE_PATH,
     GROUND_HEIGHT_EXTENSION_PERCENT,
+    GROUND_SCROLL_SPEED,
     MAX_GROWTH_LEVELS,
     GROWTH_SCALE_PER_LEVEL,
     INTRO_ANIMATION_DELAY,
+    INTRO_BOUNCE_1_HOLD_TIME,
+    INTRO_BOUNCE_3_HOLD_TIME,
     FOREST_UNLOCK_SCORE,
     FOREST_DUST_ENABLED,
     calculateResponsiveBallSize,
@@ -121,6 +126,17 @@ export const useGameLoop = () => {
   const isTenthOutRef = useRef(false);
   const isFinalSequenceRef = useRef(false);
   const isReturningToRightRef = useRef(false);
+  const bounceModeOutRef = useRef<0 | 4 | 7 | 10>(0);
+  const bounceChargeStageRef = useRef<'idle' | 'windup' | 'charging' | 'hitWall' | 'returning' | 'postReturn' | 'smallJump' | 'largeJump' | 'done'>('idle');
+  const bounceOriginalXRef = useRef(0);
+  const bounceLeftHitTimeRef = useRef(0);
+  const bounceSmallJumpTriggeredRef = useRef(false);
+  const bounceLargeJumpTriggeredRef = useRef(false);
+  const bounceStageStartTimeRef = useRef(0);
+  const bounceChargeStartXRef = useRef(0);
+  const bounceChargeTargetXRef = useRef(0);
+  const bounceReturnStartXRef = useRef(0);
+  const bounceReturnTargetXRef = useRef(0);
   const nextChargeTimeRef = useRef<number>(0);
   const lastFinalCollisionTimeRef = useRef<number>(0);
   const chargeActiveRef = useRef(false);
@@ -136,9 +152,11 @@ export const useGameLoop = () => {
   const forestTreesBackgroundRef = useRef<ScrollingBackground | null>(null);
   const transitioningGroundRef = useRef<TransitioningGround | null>(null);
   const gradientOverlayRef = useRef<GradientOverlay | null>(null);
+  const floatingPlatformsRef = useRef<FloatingPlatforms | null>(null);
   const forestDustFieldRef = useRef<ForestDustField | null>(null);
   const forestDustActiveRef = useRef(false);
   const forestUnlockedRef = useRef(false);
+  const lastFrameTimeRef = useRef(performance.now());
 
   const triggerForestDustReveal = useCallback(() => {
     if (!FOREST_DUST_ENABLED || forestDustActiveRef.current) return;
@@ -176,7 +194,16 @@ export const useGameLoop = () => {
     const responsiveFloorPosition = calculateResponsiveFloorPosition(width, height);
     const physics = calculateResponsivePhysics(height);
     const groundOffset = height * GROUND_HEIGHT_EXTENSION_PERCENT;
+
+    // Calculate centerY using the OLD system for backwards compatibility with initialization
+    // This is still used for enemy physics initialization and other setup
     const centerY = (height * responsiveFloorPosition + groundOffset) - responsiveHitboxSize / 2;
+
+    // Calculate floorY to match where the ground image top actually is
+    // This matches the calculation in TransitioningGround.getGroundTopY()
+    // We can calculate this directly since we know the ground image height scales to canvas width
+    // The ground uses: groundTopY = canvasHeight - (groundImageHeight * scale + heightExtension)
+    // For now, use centerY + ballSize/2 as approximation, but the ground surface will be authoritative during gameplay
     const floorY = centerY + responsiveBallSize / 2;
 
     return {
@@ -198,6 +225,236 @@ export const useGameLoop = () => {
   };
 
   const dimensionsRef = useRef(calculateDimensions());
+
+  const spawnFloatingPlatformForOut = useCallback((outCount: number) => {
+    if (!floatingPlatformsRef.current) return;
+    if (outCount <= 0 || outCount % 2 !== 0 || outCount >= MAX_OUTS) return;
+    const dims = dimensionsRef.current;
+    const spawnBuffer = dims.ballSize * 1.25;
+    const spawnX = cameraXRef.current + dims.width + spawnBuffer;
+    floatingPlatformsRef.current.spawn(spawnX, dims.centerY, dims.ballSize);
+  }, []);
+
+  const getPlatformSupport = useCallback((state: PlayerState, prevPos?: { x: number; y: number } | null) => {
+    if (!floatingPlatformsRef.current) return null;
+    const dims = dimensionsRef.current;
+    const playerGrowthScale = 1 + playerGrowthLevelRef.current * GROWTH_SCALE_PER_LEVEL;
+    const playerSize = dims.ballSize * playerGrowthScale;
+    const growthAmount = playerSize - dims.ballSize;
+
+    const calcBounds = (pos: { x: number; y: number }) => {
+      const left = pos.x - growthAmount / 2;
+      const top = pos.y - growthAmount;
+      const right = left + playerSize;
+      const bottom = top + playerSize;
+      return { left, right, top, bottom };
+    };
+
+    const currentBounds = calcBounds(state.position);
+    const previousBounds = prevPos ? calcBounds(prevPos) : currentBounds;
+
+    return floatingPlatformsRef.current.getSupportingPlatform(
+      currentBounds,
+      previousBounds,
+      state.velocity
+    );
+  }, []);
+
+  const finalizeSpecialBounce = () => {
+    const dims = dimensionsRef.current;
+    bounceChargeStageRef.current = 'done';
+    bounceModeOutRef.current = 0;
+    bounceSmallJumpTriggeredRef.current = false;
+    bounceLargeJumpTriggeredRef.current = false;
+    bounceStageStartTimeRef.current = 0;
+    setEnemyInBounceMode(false);
+    enemyInBounceModeRef.current = false;
+    const velocity = enemyPhysicsRef.current?.enableHoverMode() ?? 0;
+    const currentY = enemyPhysicsRef.current?.getY() ?? dims.centerY;
+    enemyMovementRef.current?.startTransition(velocity, currentY);
+  };
+
+  const ensureEnemyWithinBounds = useCallback(() => {
+    const dims = dimensionsRef.current;
+    const currentX = enemyXRef.current;
+    const maxDistance = dims.width * 3;
+
+    if (!Number.isFinite(currentX) || Math.abs(currentX) > maxDistance) {
+      const baseX = levelRef.current > 1 ? dims.enemyX + dims.width : dims.enemyX;
+      console.warn('[ENEMY SAFEGUARD] Enemy X invalid, resetting to', baseX);
+      enemyXRef.current = baseX;
+      setEnemyX(baseX);
+      enemyMovementRef.current?.reset(dims.centerY);
+      enemyPhysicsRef.current?.setY(dims.centerY);
+      enemyPhysicsRef.current?.setVelocity(0);
+      bounceModeOutRef.current = 0;
+      bounceChargeStageRef.current = 'idle';
+      bounceSmallJumpTriggeredRef.current = false;
+      bounceLargeJumpTriggeredRef.current = false;
+    }
+  }, [setEnemyX]);
+
+  const applyEnemyHitPenalty = useCallback(() => {
+    setIsShaking(true);
+    setTimeout(() => setIsShaking(false), 200);
+    impactAmountRef.current = 1;
+    impactPhaseRef.current = 0;
+    impactAmplitudeRef.current = 1;
+    impactCyclesRef.current = 0;
+    setImpactAmount(1);
+    setPlayerOuts(prev => {
+      const newOuts = Math.min(prev + 2, MAX_OUTS);
+      if (newOuts >= MAX_OUTS) {
+        gameOverRef.current = true;
+        setGameOver(true);
+      }
+      return newOuts;
+    });
+    setEnemyGrowthLevel(prev => {
+      const newGrowth = Math.min(prev + 2, MAX_GROWTH_LEVELS);
+      laserPhysicsRef.current?.setEnemyGrowthLevel(newGrowth);
+      return newGrowth;
+    });
+  }, []);
+
+  const handleSpecialBounceCharge = useCallback((enemyState: PlayerState) => {
+    const specialOut = bounceModeOutRef.current;
+    if (specialOut !== 4 && specialOut !== 7) return;
+
+    const dims = dimensionsRef.current;
+    const cameraOffset = cameraXRef.current;
+    const isOnGround = enemyState.position.y >= dims.centerY - 1 && Math.abs(enemyState.velocity) < 0.5;
+
+    switch (bounceChargeStageRef.current) {
+      case 'idle':
+        if (isOnGround) {
+          bounceChargeStageRef.current = 'charging';
+          bounceOriginalXRef.current = enemyXRef.current;
+          enemyPhysicsRef.current?.stopBouncing();
+        }
+        break;
+      case 'windup': {
+        const now = performance.now();
+        if (!isOnGround) {
+          bounceStageStartTimeRef.current = 0;
+          break;
+        }
+        if (bounceStageStartTimeRef.current === 0) {
+          enemyPhysicsRef.current?.stopBouncing();
+          enemyPhysicsRef.current?.setVelocity(0);
+          bounceStageStartTimeRef.current = now;
+          break;
+        }
+        if (now - bounceStageStartTimeRef.current >= 500) {
+          bounceChargeStageRef.current = 'charging';
+          bounceStageStartTimeRef.current = now;
+          bounceChargeStartXRef.current = enemyXRef.current;
+          bounceChargeTargetXRef.current = cameraOffset + 40;
+        }
+        break;
+      }
+      case 'charging': {
+        const now = performance.now();
+        const duration = 1400;
+        const t = Math.min(1, (now - bounceStageStartTimeRef.current) / duration);
+        const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+        const startX = bounceChargeStartXRef.current;
+        const targetX = bounceChargeTargetXRef.current;
+        const nextX = startX + (targetX - startX) * eased;
+        enemyXRef.current = nextX;
+        setEnemyX(nextX);
+        if (t >= 1) {
+          bounceChargeStageRef.current = 'hitWall';
+          bounceStageStartTimeRef.current = now;
+          bounceLeftHitTimeRef.current = now;
+          enemyPhysicsRef.current?.triggerManualJump(INTRO_BOUNCE_1_HOLD_TIME);
+        }
+
+        const dims = dimensionsRef.current;
+        const pState = playerPhysicsRef.current?.getState();
+        if (pState) {
+          const playerGrowthScale = 1 + playerGrowthLevelRef.current * GROWTH_SCALE_PER_LEVEL;
+          const playerSize = dims.ballSize * playerGrowthScale;
+          const enemyGrowthScale = 1 + enemyGrowthLevelRef.current * GROWTH_SCALE_PER_LEVEL;
+          const enemyWidth = dims.ballSize * enemyGrowthScale;
+          const playerLeft = pState.position.x - (playerSize - dims.ballSize) / 2;
+          const playerTop = pState.position.y - (playerSize - dims.ballSize);
+          const enemyLeft = enemyXRef.current - (enemyWidth - dims.ballSize) / 2;
+          const enemyTop = enemyState.position.y - (enemyWidth - dims.ballSize);
+          const MARGIN = 4;
+          const intersects =
+            playerLeft - MARGIN < enemyLeft + enemyWidth + MARGIN &&
+            playerLeft + playerSize + MARGIN > enemyLeft - MARGIN &&
+            playerTop - MARGIN < enemyTop + enemyWidth + MARGIN &&
+            playerTop + playerSize + MARGIN > enemyTop - MARGIN;
+
+          if (intersects && now - lastFinalCollisionTimeRef.current > 250) {
+            lastFinalCollisionTimeRef.current = now;
+            applyEnemyHitPenalty();
+            bounceChargeStageRef.current = 'returning';
+            bounceStageStartTimeRef.current = now;
+            bounceReturnStartXRef.current = enemyXRef.current;
+            bounceReturnTargetXRef.current = bounceOriginalXRef.current || dims.enemyX + (levelRef.current > 1 ? dims.width : 0);
+            bounceSmallJumpTriggeredRef.current = false;
+            bounceLargeJumpTriggeredRef.current = false;
+          }
+        }
+        break;
+      }
+      case 'hitWall': {
+        const now = performance.now();
+        if (now - bounceStageStartTimeRef.current >= 450) {
+          bounceChargeStageRef.current = 'returning';
+          bounceStageStartTimeRef.current = now;
+          bounceReturnStartXRef.current = enemyXRef.current;
+          bounceReturnTargetXRef.current = bounceOriginalXRef.current || dims.enemyX + (levelRef.current > 1 ? dims.width : 0);
+        }
+        break;
+      }
+      case 'returning': {
+        const now = performance.now();
+        const duration = 1200;
+        const t = Math.min(1, (now - bounceStageStartTimeRef.current) / duration);
+        const eased = 1 - Math.pow(1 - t, 3);
+        const startX = bounceReturnStartXRef.current;
+        const targetX = bounceReturnTargetXRef.current;
+        const nextX = startX + (targetX - startX) * eased;
+        enemyXRef.current = nextX;
+        setEnemyX(nextX);
+        if (t >= 1) {
+          bounceChargeStageRef.current = 'postReturn';
+          bounceStageStartTimeRef.current = now;
+        }
+        break;
+      }
+      case 'postReturn': {
+        const now = performance.now();
+        if (now - bounceStageStartTimeRef.current >= 450) {
+          bounceChargeStageRef.current = 'smallJump';
+          bounceSmallJumpTriggeredRef.current = false;
+        }
+        break;
+      }
+      case 'smallJump':
+        if (!bounceSmallJumpTriggeredRef.current) {
+          enemyPhysicsRef.current?.triggerManualJump(INTRO_BOUNCE_1_HOLD_TIME);
+          bounceSmallJumpTriggeredRef.current = true;
+        } else if (isOnGround && performance.now() - bounceStageStartTimeRef.current >= 400) {
+          bounceChargeStageRef.current = 'largeJump';
+          bounceLargeJumpTriggeredRef.current = false;
+          bounceStageStartTimeRef.current = performance.now();
+        }
+        break;
+      case 'largeJump':
+        if (!bounceLargeJumpTriggeredRef.current) {
+          enemyPhysicsRef.current?.triggerManualJump(INTRO_BOUNCE_3_HOLD_TIME);
+          bounceLargeJumpTriggeredRef.current = true;
+        } else if (enemyState.velocity < 0) {
+          finalizeSpecialBounce();
+        }
+        break;
+    }
+  }, [applyEnemyHitPenalty, setEnemyX]);
 
   useEffect(() => {
     const dims = dimensionsRef.current;
@@ -231,6 +488,9 @@ export const useGameLoop = () => {
       dims.laserWidth,
       dims.laserHeight
     );
+    laserPhysicsRef.current.setShotProfile('calm');
+    laserPhysicsRef.current.setMaxLasersAllowed(4);
+    laserPhysicsRef.current.setMaxLasersAllowed(4);
 
     // Initialize enemy physics for intro animation
     enemyPhysicsRef.current = new EnemyPhysics(
@@ -263,6 +523,7 @@ export const useGameLoop = () => {
     forestTreesBackgroundRef.current = new ScrollingBackground(FOREST_TREES_IMAGE_PATH, false, FOREST_TRANSITION_IMAGE_PATH);
     transitioningGroundRef.current = new TransitioningGround(CLOUD_GROUND_IMAGE_PATH, TRANSITION_GROUND_IMAGE_PATH, FOREST_GROUND_IMAGE_PATH);
     gradientOverlayRef.current = new GradientOverlay();
+    floatingPlatformsRef.current = new FloatingPlatforms();
     console.log('[GameLoop] FOREST_DUST_ENABLED:', FOREST_DUST_ENABLED);
     if (FOREST_DUST_ENABLED) {
       console.log('[GameLoop] Creating ForestDustField with dimensions:', dims.width, 'x', dims.height);
@@ -325,13 +586,13 @@ export const useGameLoop = () => {
 
   useEffect(() => {
     if (forestUnlockedRef.current) return;
-    if (score >= FOREST_UNLOCK_SCORE) {
-      console.log('[FOREST UNLOCK] Score:', score, 'Player state:', playerState);
+    if (energy >= FOREST_UNLOCK_SCORE) {
+      console.log('[FOREST UNLOCK] Energy:', energy, 'Player state:', playerState);
       forestUnlockedRef.current = true;
       ensureForestBackgroundActive();
       console.log('[FOREST UNLOCK] After ensureForestBackgroundActive, Player state:', playerState);
     }
-  }, [score, ensureForestBackgroundActive, playerState]);
+  }, [energy, ensureForestBackgroundActive, playerState]);
   useEffect(() => {
     cameraXRef.current = cameraX;
   }, [cameraX]);
@@ -374,6 +635,7 @@ export const useGameLoop = () => {
       );
       forestDustFieldRef.current?.updateDimensions(dims.width, dims.height);
       transitioningGroundRef.current?.updateDimensions(dims.width, dims.height);
+      floatingPlatformsRef.current?.reset();
     };
 
     window.addEventListener('resize', handleResize);
@@ -388,10 +650,14 @@ export const useGameLoop = () => {
   useEffect(() => {
     if (gameOver) return;
     let animationFrameId: number;
+    lastFrameTimeRef.current = performance.now();
 
     const loop = () => {
       if (gameOverRef.current) return;
 
+      const now = performance.now();
+      const deltaMs = now - lastFrameTimeRef.current;
+      lastFrameTimeRef.current = now;
       const dims = dimensionsRef.current;
 
       if (!forestDustActiveRef.current && forestTreesBackgroundRef.current?.hasStartedTransition()) {
@@ -400,7 +666,7 @@ export const useGameLoop = () => {
 
       // Always update forest background; it renders only after transition starts
       forestTreesBackgroundRef.current?.update();
-      transitioningGroundRef.current?.update(scoreRef.current);
+      transitioningGroundRef.current?.update(energyRef.current);
       forestDustFieldRef.current?.update();
       // Only update reveal progress automatically during normal gameplay (not during level transitions)
       // During level transitions, reveal progress is managed manually
@@ -418,12 +684,14 @@ export const useGameLoop = () => {
       }
 
       // Prewarm ground shortly before unlock if not yet done
-      if (!groundPrewarmedRef.current && scoreRef.current >= 90) {
+      if (!groundPrewarmedRef.current && energyRef.current >= 90) {
         const dimsPrewarm = dimensionsRef.current;
         transitioningGroundRef.current?.prewarm(dimsPrewarm.width, dimsPrewarm.height);
         forestTreesBackgroundRef.current?.prewarm(dimsPrewarm.width, dimsPrewarm.height);
         groundPrewarmedRef.current = true;
       }
+      const groundSpeed = transitioningGroundRef.current?.getCurrentScrollSpeed() ?? GROUND_SCROLL_SPEED;
+      floatingPlatformsRef.current?.update(deltaMs, cameraXRef.current, dims.width, groundSpeed);
       laserPhysicsRef.current?.updateLaserCount(scoreRef.current);
       setNumLasers(laserPhysicsRef.current?.getNumLasers() || 1);
 
@@ -433,12 +701,32 @@ export const useGameLoop = () => {
       let newPlayerState;
 
       if (shouldUpdatePlayerPhysics) {
+        let prevPositionSnapshot: { x: number; y: number } | null = null;
+        if (playerPhysicsRef.current) {
+          const snapshot = playerPhysicsRef.current.getState();
+          prevPositionSnapshot = { x: snapshot.position.x, y: snapshot.position.y };
+        }
         newPlayerState = playerPhysicsRef.current?.update();
         if (newPlayerState) {
-          setPlayerState(newPlayerState);
+          const support = getPlatformSupport(newPlayerState, prevPositionSnapshot);
+          if (support) {
+            const dimsCurrent = dimensionsRef.current;
+            const playerGrowthScale = 1 + playerGrowthLevelRef.current * GROWTH_SCALE_PER_LEVEL;
+            const playerSize = dimsCurrent.ballSize * playerGrowthScale;
+            const growthAmount = playerSize - dimsCurrent.ballSize;
+            const landingY = support.surfaceY + growthAmount;
+            playerPhysicsRef.current?.landOnSurface(landingY);
+            newPlayerState = playerPhysicsRef.current?.getState();
+          } else {
+            playerPhysicsRef.current?.clearSurfaceOverride();
+          }
+
+          if (newPlayerState) {
+            setPlayerState(newPlayerState);
+          }
 
           // Log when physics resumes after level transition
-          if (wasInTransition && !isLevelTransitionRef.current) {
+          if (newPlayerState && wasInTransition && !isLevelTransitionRef.current) {
             console.log('[PHYSICS RESUMED] Player position after first update:', newPlayerState.position.x, newPlayerState.position.y);
           }
 
@@ -471,6 +759,7 @@ export const useGameLoop = () => {
 
       // Update enemy physics during intro animation or bounce mode
       if (enemyPhysicsRef.current && !enemyPhysicsRef.current.isHoverMode()) {
+        // Enemy uses default centerY for ground (don't pass groundLevel, let it use default)
         const enemyState = enemyPhysicsRef.current.update();
 
         // Check if enemy is ready to transition to hover (after intro animation ONLY, not during bounce mode)
@@ -478,6 +767,10 @@ export const useGameLoop = () => {
           const velocity = enemyPhysicsRef.current.enableHoverMode();
           const currentY = enemyPhysicsRef.current.getY();
           enemyMovementRef.current?.startTransition(velocity, currentY);
+        }
+
+        if (enemyInBounceModeRef.current && (bounceModeOutRef.current === 4 || bounceModeOutRef.current === 7)) {
+          handleSpecialBounceCharge(enemyState);
         }
 
         // On 10th out: disable enemy when it hits the ground (no bounce, no shoot)
@@ -494,6 +787,7 @@ export const useGameLoop = () => {
         // EnemyPhysics sets bounceModeActive=false after 4 jumps, we detect that here
         if (!isTenthOutRef.current &&
             enemyInBounceModeRef.current &&
+            bounceModeOutRef.current === 0 &&
             !enemyPhysicsRef.current.isBounceModeActive() &&
             enemyState.velocity < 0 &&
             enemyState.velocity > -2) { // Near the peak (just started falling)
@@ -506,6 +800,8 @@ export const useGameLoop = () => {
         // Update enemy Y position and scale from physics
         setEnemyY(enemyState.position.y);
         setEnemyScale({ scaleX: enemyState.scaleX, scaleY: enemyState.scaleY });
+
+        ensureEnemyWithinBounds();
 
         if (isFinalSequenceRef.current) {
           const now = performance.now();
@@ -563,37 +859,11 @@ export const useGameLoop = () => {
 
               if (intersects && (now - lastFinalCollisionTimeRef.current) > 250) {
                 lastFinalCollisionTimeRef.current = now;
-                // Screen shake short burst
-                setIsShaking(true);
-                setTimeout(() => setIsShaking(false), 200);
-                // Start impact squash oscillator (decays with spring over ~3 pulses)
-                impactAmountRef.current = 1;
-                impactPhaseRef.current = 0;
-                impactAmplitudeRef.current = 1;
-                impactCyclesRef.current = 0;
-                setImpactAmount(1);
-
+                applyEnemyHitPenalty();
                 // Enemy bounces off and returns to right
                 isReturningToRightRef.current = true;
                 chargeActiveRef.current = false;
                 chargeVelocityRef.current = 0;
-
-                // Player takes 2 outs
-                setPlayerOuts(prev => {
-                  const newOuts = Math.min(prev + 2, MAX_OUTS);
-                  if (newOuts >= MAX_OUTS) {
-                    gameOverRef.current = true;
-                    setGameOver(true);
-                  }
-                  return newOuts;
-                });
-
-                // Enemy grows by 2 levels on successful hit (mirror of taking 2 outs on enemy)
-                setEnemyGrowthLevel(prev => {
-                  const newGrowth = Math.min(prev + 2, MAX_GROWTH_LEVELS);
-                  laserPhysicsRef.current?.setEnemyGrowthLevel(newGrowth);
-                  return newGrowth;
-                });
               }
             }
 
@@ -617,6 +887,7 @@ export const useGameLoop = () => {
         enemyMovementRef.current.update();
         setEnemyY(enemyMovementRef.current.getCurrentY());
         setEnemyScale(enemyMovementRef.current.getScale());
+        ensureEnemyWithinBounds();
       }
 
       setAnimatedPlayerGrowthLevel(prev => {
@@ -726,6 +997,7 @@ export const useGameLoop = () => {
             playerGrowthLevelRef.current = 0;
             setPlayerOuts(0);
             setEnemyOuts(0);
+            floatingPlatformsRef.current?.reset();
             setShootGameOver(false);
             // Reset energy and shooting unlock for the new level
             setEnergy(0);
@@ -741,11 +1013,14 @@ export const useGameLoop = () => {
             nextChargeTimeRef.current = 0;
             chargeActiveRef.current = false;
             chargeVelocityRef.current = 0;
-            // Increase laser speed slightly for next level and add extra chaos
-            const baseSpeedFactor = upcomingLevel >= 2 ? 0.2 : 0.15;
-            const speedMultiplier = 1 + baseSpeedFactor * upcomingLevel;
+            // Increase laser speed and randomness for higher levels
+            const levelBoost = Math.max(0, upcomingLevel - 1);
+            const speedMultiplier = levelBoost > 0 ? 1 + 0.45 * levelBoost : 1.15;
+            const chaosBoost = levelBoost > 0 ? 1 + 0.4 * levelBoost : 1;
             laserPhysicsRef.current?.setBaseSpeed(BASE_LASER_SPEED * speedMultiplier);
-            laserPhysicsRef.current?.setChaosBoost(upcomingLevel >= 2 ? 1.3 : 1);
+            laserPhysicsRef.current?.setChaosBoost(chaosBoost);
+            laserPhysicsRef.current?.setMaxLasersAllowed(levelBoost > 0 ? MAX_LASERS : 4);
+            laserPhysicsRef.current?.setShotProfile(levelBoost > 0 ? 'aggressive' : 'calm');
             // Prepare camera to start at 0 and pan right to dims.width
             cameraXRef.current = 0;
             setCameraX(0);
@@ -893,7 +1168,7 @@ export const useGameLoop = () => {
         enemyPhysicsRef.current?.isEnemyDisabled() || false,
         allowEnemyLasers,
         // Stop spawning lasers during 10th-out final sequence, but allow existing lasers to finish
-        isTenthOutRef.current || isFinalSequenceRef.current || isLevelTransitionRef.current
+        enemyInBounceModeRef.current || isTenthOutRef.current || isFinalSequenceRef.current || isLevelTransitionRef.current
       );
 
       if (laserUpdate && laserPhysicsRef.current) {
@@ -987,6 +1262,7 @@ export const useGameLoop = () => {
                     setEnemyOuts(prev => {
                       const newOuts = prev + 1;
                       console.log(`[DEBUG] Enemy outs: ${newOuts}`);
+                      spawnFloatingPlatformForOut(newOuts);
 
                       // Check if this is a bounce mode out (4th, 7th, or 10th)
                       if (newOuts === 4 || newOuts === 7 || newOuts === 10) {
@@ -994,6 +1270,16 @@ export const useGameLoop = () => {
                         console.log(`[BOUNCE MODE] Before - isHoverMode: ${enemyPhysicsRef.current?.isHoverMode()}`);
 
                         setEnemyInBounceMode(true);
+                        bounceModeOutRef.current = (newOuts >= MAX_OUTS ? 10 : newOuts) as 4 | 7 | 10;
+                        bounceChargeStageRef.current = 'windup';
+                        bounceOriginalXRef.current = enemyXRef.current;
+                        bounceLeftHitTimeRef.current = 0;
+                        bounceSmallJumpTriggeredRef.current = false;
+                        bounceLargeJumpTriggeredRef.current = false;
+                        bounceStageStartTimeRef.current = 0;
+                        if (newOuts === 4 || newOuts === 7) {
+                          enemyPhysicsRef.current?.stopBouncing();
+                        }
 
                         // Transfer state from hover to physics (smooth transition)
                         const currentY = enemyMovementRef.current?.getCurrentY() || dimensionsRef.current.centerY;
@@ -1017,6 +1303,9 @@ export const useGameLoop = () => {
                         gameOverRef.current = true;
                         setShootGameOver(true);
                         setGameOver(true);
+                      } else {
+                        bounceModeOutRef.current = 0;
+                        bounceChargeStageRef.current = 'idle';
                       }
 
                       return Math.min(newOuts, MAX_OUTS);
@@ -1054,7 +1343,7 @@ export const useGameLoop = () => {
 
     animationFrameId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [gameOver, ensureForestBackgroundActive, triggerForestDustReveal]);
+  }, [gameOver, ensureForestBackgroundActive, triggerForestDustReveal, handleSpecialBounceCharge, applyEnemyHitPenalty, ensureEnemyWithinBounds, getPlatformSupport, spawnFloatingPlatformForOut]);
 
   const handleJumpStart = useCallback(() => {
     if (gameOver || !controlsEnabled) return;
@@ -1135,6 +1424,9 @@ export const useGameLoop = () => {
     setScore(0);
     playerPhysicsRef.current?.reset(dims.playerStartX, dims.centerY);
     laserPhysicsRef.current?.reset();
+    laserPhysicsRef.current?.setMaxLasersAllowed(4);
+    laserPhysicsRef.current?.setShotProfile('calm');
+    laserPhysicsRef.current?.setChaosBoost(1);
     enemyPhysicsRef.current?.reset(dims.centerY);
     enemyMovementRef.current?.reset(dims.centerY);
     introAnimationStartedRef.current = false; // Allow intro animation to play again
@@ -1165,11 +1457,16 @@ export const useGameLoop = () => {
     playerGrowthLevelRef.current = 0;
     setPlayerOuts(0);
     setEnemyOuts(0);
+    floatingPlatformsRef.current?.reset();
     setShootGameOver(false);
     setEnergy(0);
     setCanShoot(false);
     setEnemyX(dims.enemyX);
     enemyXRef.current = dims.enemyX;
+    bounceModeOutRef.current = 0;
+    bounceChargeStageRef.current = 'idle';
+    bounceSmallJumpTriggeredRef.current = false;
+    bounceLargeJumpTriggeredRef.current = false;
     isFinalSequenceRef.current = false;
     isReturningToRightRef.current = false;
     nextChargeTimeRef.current = 0;
@@ -1185,6 +1482,7 @@ export const useGameLoop = () => {
     scoreRef.current = 50;
     setScore(50);
     setEnergy(100);
+    floatingPlatformsRef.current?.reset();
     const dims = dimensionsRef.current;
     if (levelRef.current <= 1) {
       // Ensure the ground shows the transition tile next (no immediate forest-only)
@@ -1192,32 +1490,43 @@ export const useGameLoop = () => {
       // Prewarm caches immediately for a seamless first frame
       transitioningGroundRef.current?.prewarm(dims.width, dims.height);
       forestTreesBackgroundRef.current?.prewarm(dims.width, dims.height);
+      laserPhysicsRef.current?.setShotProfile('calm');
+      laserPhysicsRef.current?.setMaxLasersAllowed(4);
+      laserPhysicsRef.current?.setChaosBoost(1);
     } else {
       transitioningGroundRef.current?.setForestMode(true);
       ensureForestBackgroundActive();
       forestDustFieldRef.current?.setRevealProgress(1);
       forestUnlockedRef.current = true;
+      laserPhysicsRef.current?.setShotProfile('aggressive');
     }
     setCanShoot(true);
     laserPhysicsRef.current?.setScore(100);
   }, [ensureForestBackgroundActive]);
 
-  const handleTestTenOuts = useCallback(() => {
+  const handleTestSpecialOut = useCallback((outNumber: 4 | 7 | 10) => {
     if (gameOverRef.current) return;
-
-    // Trigger the slowdown for ground and background
-    transitioningGroundRef.current?.startSlowingDown(3000); // 3 seconds
-    forestTreesBackgroundRef.current?.startSlowingDown(2000); // 2 seconds
-
-    setEnemyOuts(MAX_OUTS);
-    setEnemyInBounceMode(true);
+    floatingPlatformsRef.current?.reset();
 
     const currentY = enemyMovementRef.current?.getCurrentY() || dimensionsRef.current.centerY;
     const initialVelocity = -1;
     enemyPhysicsRef.current?.enablePhysicsModeWithState(currentY, initialVelocity);
+    setEnemyInBounceMode(true);
+    bounceModeOutRef.current = outNumber;
+    bounceChargeStageRef.current = 'windup';
+    bounceStageStartTimeRef.current = 0;
+    bounceOriginalXRef.current = enemyXRef.current;
+    bounceLeftHitTimeRef.current = 0;
+    bounceSmallJumpTriggeredRef.current = false;
+    bounceLargeJumpTriggeredRef.current = false;
 
-    setIsTenthOut(true);
-    setShootGameOver(true);
+    if (outNumber === 10) {
+      setEnemyOuts(MAX_OUTS);
+      setIsTenthOut(true);
+      setShootGameOver(true);
+      transitioningGroundRef.current?.startSlowingDown(3000);
+      forestTreesBackgroundRef.current?.startSlowingDown(2000);
+    }
   }, []);
 
   const handleToggleSound = useCallback(() => {
@@ -1253,6 +1562,7 @@ export const useGameLoop = () => {
     forestTreesBackground: forestTreesBackgroundRef.current,
     transitioningGround: transitioningGroundRef.current,
     gradientOverlay: gradientOverlayRef.current,
+    floatingPlatforms: floatingPlatformsRef.current,
     cameraX,
     level,
     controlsEnabled,
@@ -1270,6 +1580,6 @@ export const useGameLoop = () => {
     handleTestScore,
     handleToggleSound,
     testEnergy,
-    handleTestTenOuts,
+    handleTestSpecialOut,
   };
 };

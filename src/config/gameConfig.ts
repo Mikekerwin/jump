@@ -139,6 +139,13 @@ export const FOREST_DUST_FADE_IN_DURATION = 2400; // ms
 export const FOREST_DUST_FADE_OUT_DURATION = 1200; // ms
 export const FOREST_DUST_COLOR = { r: 0.95, g: 0.82, b: 0.65 };
 export const FOREST_DUST_MOBILE_SWIRL_SCALE = 0.4;
+export const GRASS_PLATFORM_IMAGE_PATH = process.env.PUBLIC_URL
+  ? `${process.env.PUBLIC_URL}/grassPlatform_Large.png`
+  : '/grassPlatform_Large.png';
+export const FLOATING_PLATFORM_VERTICAL_OFFSET = 100; // pixels above ground center
+export const FLOATING_PLATFORM_SPEED_MULTIPLIER = 1.0;
+export const FLOATING_PLATFORM_DEBUG_OVERLAY = false;
+export const FLOATING_PLATFORM_DEBUG_COLOR = 'rgba(0, 255, 127, 0.35)';
 export type ForestDustBucket = {
   ratio: number;
   minSizePercent: number; // Size as percentage of screen height

@@ -186,8 +186,12 @@ export class EnemyPhysics {
 
   /**
    * Update enemy physics for one frame
+   * @param groundLevel Optional ground level (defaults to centerY, but can be actual ground surface)
    */
-  update(): PlayerState {
+  update(groundLevel?: number): PlayerState {
+    // Use provided ground level or default to centerY
+    const effectiveGround = groundLevel !== undefined ? groundLevel : this.centerY;
+
     // Only apply physics if enabled
     if (this.isPhysicsEnabled && !this.isDisabled) {
       // Apply gravity
@@ -207,8 +211,8 @@ export class EnemyPhysics {
       this.enemyState.position.y -= this.enemyState.velocity;
 
       // Handle floor collision (bounce)
-      if (this.enemyState.position.y > this.centerY) {
-        this.enemyState.position.y = this.centerY;
+      if (this.enemyState.position.y > effectiveGround) {
+        this.enemyState.position.y = effectiveGround;
         this.enemyState.velocity = -this.enemyState.velocity * this.energyLoss;
 
         // Stop very small bounces
@@ -227,7 +231,7 @@ export class EnemyPhysics {
       this.updateSquashStretch();
     } else if (this.isDisabled) {
       // If disabled, just sit on the ground
-      this.enemyState.position.y = this.centerY;
+      this.enemyState.position.y = effectiveGround;
       this.enemyState.velocity = 0;
       this.enemyState.scaleX = 1;
       this.enemyState.scaleY = 1;
@@ -333,6 +337,14 @@ export class EnemyPhysics {
     // The hold boost will be applied in the update loop until maxHoldTime is reached
   }
 
+  /**
+   * Trigger a manual jump (used by scripted bounce sequences).
+   */
+  triggerManualJump(holdDuration: number): void {
+    const clamped = Math.max(0, Math.min(this.maxHoldTime, holdDuration));
+    this.startJumpWithHold(clamped);
+  }
+
 
   /**
    * Update squash/stretch animation based on velocity (same as blue player)
@@ -399,6 +411,13 @@ export class EnemyPhysics {
    */
   setY(y: number): void {
     this.enemyState.position.y = y;
+  }
+
+  /**
+   * Forcefully zero velocity (used for scripted sequences)
+   */
+  setVelocity(value: number): void {
+    this.enemyState.velocity = value;
   }
 
   /**
